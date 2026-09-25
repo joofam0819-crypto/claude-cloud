@@ -306,7 +306,8 @@ const mdw = d => `${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
 const clone = o => JSON.parse(JSON.stringify(o));
 const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
-const use = name => (window.claude && typeof window.claude.use === 'function') ? window.claude.use(name).catch(() => null) : Promise.resolve(null);
+const inFrame = !!(window.claude && typeof window.claude.use === 'function');
+const use = name => inFrame ? window.claude.use(name).catch(() => null) : Promise.resolve(null);
 
 const I = {
   today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>',
@@ -345,7 +346,7 @@ const SUB_PRESETS = ['넷플릭스', '유튜브 프리미엄', '쿠팡 와우', 
 
 /* ───────── 저장소 (로컬 + 클라우드 동기화) ───────── */
 const LS_KEY = 'haru.v1';
-const S = { docs: {}, dirty: new Set(), deleted: new Set(), inflight: new Set(), mode: 'local', sync: 'local', col: null, ephemeral: false, synced: false, flushing: false, timer: null, readonly: false };
+const S = { docs: {}, dirty: new Set(), deleted: new Set(), inflight: new Set(), mode: 'local', sync: 'local', col: null, ephemeral: false, synced: false, flushing: false, timer: null, readonly: false, canSave: null };
 const emptyCore = () => ({ v: 1, sample: false, settings: { budget: 0, weekStart: 1 }, habits: [], subs: [], ddays: [] });
 const core = () => S.docs.core || (S.docs.core = emptyCore());
 const settings = () => core().settings || (core().settings = { budget: 0, weekStart: 1 });
@@ -762,7 +763,7 @@ function viewMoney() {
     <div class="dayline" style="margin-top:8px"><span>예산 ${won(b)}의 ${Math.round(used * 100)}%</span><span class="${st.out > b ? 'over' : ''}">${st.out > b ? `${won(st.out - b)} 초과` : `${won(b - st.out)} 남음`}</span></div>`;
   const bt = isCur ? budgetToday() : null;
 
-  return `<header class="hero"><div><div class="eyebrow">${y}년</div><h1>${m}월 가계부</h1></div>${heroActions(`<button class="icon-btn" data-act="xlsx" aria-label="엑셀로 저장">${I.down}</button>`)}</header>
+  return `<header class="hero"><div><div class="eyebrow">${y}년</div><h1>${m}월 가계부</h1></div>${heroActions(S.canSave === false ? '' : `<button class="icon-btn" data-act="xlsx" aria-label="엑셀로 저장">${I.down}</button>`)}</header>
   <div class="stack">
     ${sampleBanner()}
     <section class="card">
@@ -1140,10 +1141,10 @@ function settingsSheet() {
       <div class="field"><span class="flabel">데이터</span>
         <div class="card" style="background:var(--surface-2);box-shadow:none">
           <div class="set-row"><span>저장 위치</span>${syncBadge()}</div>
-          <p class="note" style="margin:0 0 4px">${S.mode === 'cloud' ? '내 Claude 계정에 저장돼서 휴대폰과 PC에서 같은 내용을 볼 수 있어요. 다른 사람에게는 보이지 않아요.' : '이 기기의 브라우저에 저장돼요. 브라우저 데이터를 지우면 함께 지워지니 가끔 백업해 두세요.'}</p>
+          <p class="note" style="margin:0 0 4px">${S.mode === 'cloud' ? '내 Claude 계정에 저장돼서 휴대폰과 PC에서 같은 내용을 볼 수 있어요. 다른 사람에게는 보이지 않아요.' : S.canSave === false ? '이 기기의 브라우저에 저장돼요. 브라우저 데이터를 지우면 함께 지워져요.' : '이 기기의 브라우저에 저장돼요. 브라우저 데이터를 지우면 함께 지워지니 가끔 백업해 두세요.'}</p>
         </div>
-        <div class="btn-row"><button class="btn" data-s="backup">${I.down}백업 파일 저장</button><button class="btn" data-s="restore">백업 불러오기</button></div>
-        <button class="btn block" data-s="xlsx">${I.down}가계부 엑셀(.xlsx)로 저장</button>
+        ${S.canSave === false ? `<button class="btn block" data-s="restore">백업 불러오기</button>` : `<div class="btn-row"><button class="btn" data-s="backup">${I.down}백업 파일 저장</button><button class="btn" data-s="restore">백업 불러오기</button></div>
+        <button class="btn block" data-s="xlsx">${I.down}가계부 엑셀(.xlsx)로 저장</button>`}
       </div>
       <div class="field"><span class="flabel">초기화</span>
         ${core().sample ? `<button class="btn block" data-s="clearsample">예시 데이터 지우기</button>` : ''}
@@ -1195,6 +1196,7 @@ async function saveFile(filename, data, mime) {
     catch (e) { if (e && e.code === 'declined') return; toast(e && e.code === 'rate_limited' ? '잠시 뒤 다시 눌러 주세요' : '이 화면에서는 파일을 저장할 수 없어요'); }
     return;
   }
+  if (inFrame) { toast('이 화면에서는 파일을 저장할 수 없어요'); return; }
   try {
     const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
@@ -1401,6 +1403,7 @@ function tick() {
   else { S.docs = sampleDocs(); S.ephemeral = true; }
   render();
   initSync();
+  use('downloads').then(dl => { S.canSave = !!dl || !inFrame; if (!S.canSave) renderAll(); });
   setInterval(tick, 20000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
 })();
