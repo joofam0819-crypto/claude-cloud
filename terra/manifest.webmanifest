@@ -1,0 +1,30 @@
+{
+  "name": "Terra 지구본",
+  "short_name": "Terra",
+  "description": "실제 태양 위치로 낮과 밤을 그리는 3D 지구본. 세계 명소 투어, 나라·도시 검색, 거리 재기.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#04060b",
+  "theme_color": "#04060b",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
