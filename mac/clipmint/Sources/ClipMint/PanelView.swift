@@ -263,7 +263,10 @@ struct ActionButton: View {
     let icon: String; let label: String; let prominent: Bool; let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Label(label, systemImage: icon).font(.system(size: 12, weight: .semibold)).labelStyle(prominent ? .titleAndIcon : .iconOnly)
+            Group {
+                if prominent { Label(label, systemImage: icon).labelStyle(.titleAndIcon) } else { Image(systemName: icon) }
+            }
+                .font(.system(size: 12, weight: .semibold))
                 .padding(.horizontal, prominent ? 10 : 7).padding(.vertical, 5)
                 .background(prominent ? Color.accentColor : Color.primary.opacity(0.07), in: Capsule())
                 .foregroundStyle(prominent ? Color.white : Color.primary)
