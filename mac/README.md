@@ -29,17 +29,21 @@ GitHub **Releases** 페이지에서 `.dmg` 파일을 받습니다.
 3. **시스템 설정 → 개인정보 보호 및 보안** 으로 가서 아래로 내리면 "‘ClipMint’이(가) Mac을 보호하기 위해 차단되었습니다" 문구 옆에 **그래도 열기** 버튼이 있습니다. 누르고 Touch ID/비밀번호를 입력한 뒤, 다시 뜨는 창에서 **열기**를 누릅니다.
 4. 두 번째 앱도 같은 방법으로 허용합니다.
 
-터미널이 편하면 이 한 줄로 대신할 수 있습니다(차단 표시만 제거합니다):
+**가장 빠른 방법(터미널 한 줄)** — 터미널을 열고 아래를 통째로 붙여넣고 Enter. 최신 버전 다운로드·설치·차단 해제·실행까지 한 번에 됩니다.
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/ClipMint.app /Applications/Approach.app
+cd ~/Downloads && curl -L -o ClipMint.zip https://github.com/joofam0819-crypto/claude-cloud/releases/latest/download/ClipMint-1.0.0-mac.zip && curl -L -o Approach.zip https://github.com/joofam0819-crypto/claude-cloud/releases/latest/download/Approach-1.0.0-mac.zip && ditto -x -k ClipMint.zip /Applications && ditto -x -k Approach.zip /Applications && xattr -dr com.apple.quarantine /Applications/ClipMint.app /Applications/Approach.app && open /Applications/ClipMint.app && open /Applications/Approach.app
 ```
+
+이미 앱을 복사해 두었다면 차단 표시만 지워도 됩니다: `xattr -dr com.apple.quarantine /Applications/ClipMint.app /Applications/Approach.app`
 
 소스 코드는 이 저장소에 전부 공개되어 있고, 앱은 GitHub의 macOS 빌드 서버에서 자동으로 만들어집니다(`.github/workflows/mac-build.yml`).
 
 ## 3. ClipMint 사용법
 
 메뉴 막대(화면 위 오른쪽)에 📋 아이콘이 생깁니다. Dock에는 나타나지 않습니다.
+
+![ClipMint 패널](screenshots/clipmint-panel.png)
 
 **바로 쓸 것 4가지**
 1. **⇧⌘V** — 어디서든 복사 기록 패널을 엽니다. 글자를 치면 바로 검색, ↑↓로 고르고 **Enter**로 붙여넣기.
