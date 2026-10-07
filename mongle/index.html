@@ -39,6 +39,10 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cu
 button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 #stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:linear-gradient(180deg,var(--sky-1),var(--sky-2))}
 #probe{position:fixed;top:0;left:0;width:0;height:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);visibility:hidden;pointer-events:none}
+@media (display-mode:standalone){#probe{padding-bottom:max(env(safe-area-inset-bottom,0px),14px)}}
+/* a real tap on this label ticks the iPhone haptic (iOS 18+); the switch stays hidden */
+#tapzone{position:fixed;inset:0;display:block}
+#tap-hapt{position:absolute;visibility:hidden;width:1px;height:1px;margin:0}
 .hud-btns{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:calc(env(safe-area-inset-right,0px) + 10px);display:flex;gap:8px;z-index:5}
 .rb{width:42px;height:42px;border-radius:14px;background:var(--glass);border:1.5px solid var(--line);display:grid;place-items:center;color:var(--ink);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .rb svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
@@ -96,7 +100,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 </style>
 </head>
 <body>
-<canvas id="stage" aria-label="몽글몽글 게임 화면"></canvas>
+<label id="tapzone"><canvas id="stage" aria-label="몽글몽글 게임 화면"></canvas><input type="checkbox" switch id="tap-hapt" tabindex="-1" aria-hidden="true"></label>
 <div id="probe" aria-hidden="true"></div>
 <div class="hud-btns" id="hud-btns" hidden>
   <button class="rb" id="btn-sound" aria-label="소리 켜기/끄기"><svg viewBox="0 0 24 24" id="ico-sound"></svg></button>
@@ -122,7 +126,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
   <div class="row"><button class="ghost" id="btn-restart">처음부터</button><button class="ghost" id="btn-settings2">설정</button></div>
 </div></div>
 <div class="ov" id="ov-over"><div class="panel">
-  <div class="go-score"><div class="n" id="go-score">0</div><div class="l">점</div><div id="go-newbest" hidden><span class="newbest">새 기록!</span></div></div>
+  <div class="go-score"><div class="n" id="go-score">0</div><div class="l">점</div><div id="go-newbest" hidden><span class="newbest">새 기록!</span></div><div class="l" id="go-near" hidden></div></div>
   <div class="bigone"><canvas id="go-big" width="112" height="112"></canvas><div><b id="go-bigname"></b><span id="go-bigdesc"></span></div></div>
   <div class="stats"><div><b id="go-merges">0</b><span>합치기</span></div><div><b id="go-time">0:00</b><span>플레이</span></div><div><b id="go-best">0</b><span>최고 점수</span></div></div>
   <button class="big" id="btn-again">다시 하기</button>
@@ -189,7 +193,7 @@ function fmtTime(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s /
 
 /* ───────── audio ───────── */
 let AC = null;
-function audio() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); return AC; } catch (e) { return null; } }
+function audio() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state !== 'running') AC.resume(); return AC; } catch (e) { return null; } }
 function tone(freq, t0, dur, type = 'sine', gain = .08, slide = 0) {
   if (!P.sound) return; const ac = audio(); if (!ac) return;
   const o = ac.createOscillator(), g = ac.createGain(); const t = ac.currentTime + t0;
@@ -200,7 +204,7 @@ function tone(freq, t0, dur, type = 'sine', gain = .08, slide = 0) {
 const sfx = {
   drop() { tone(520, 0, .08, 'triangle', .05, -200); },
   land(v) { tone(180 + v * 20, 0, .06, 'sine', clamp(v / 80, .01, .06)); },
-  merge(lv, combo) { const base = 420 - lv * 22; tone(base, 0, .1, 'triangle', .08, 120); tone(base * 1.5, .06, .16, 'sine', .07); if (combo > 1) tone(base * 2, .12, .12, 'sine', .05); if (lv >= 6) { tone(base * 2.5, .18, .3, 'sine', .05); } },
+  merge(lv, combo) { const base = (420 - lv * 22) * (1 + .07 * (combo - 1)); tone(base, 0, .1, 'triangle', .08, 120); tone(base * 1.5, .06, .16, 'sine', .07); if (combo > 1) tone(base * 2, .12, .12, 'sine', .05); if (lv >= 6) { tone(base * 2.5, .18, .3, 'sine', .05); } },
   big() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, i * .09, .45, 'sine', .09)); },
   over() { [440, 370, 311, 262].forEach((f, i) => tone(f, i * .16, .32, 'triangle', .07)); },
   ui() { tone(880, 0, .05, 'square', .025); },
@@ -226,7 +230,7 @@ const toLogical = (cx, cy) => [(cx - offX) / scale, (cy - offY) / scale];
 /* ───────── game state ───────── */
 let G = null;
 function newGame() {
-  return { bodies: [], score: 0, merges: 0, maxLv: 0, held: pickDrop(), next: pickDrop(), holdX: SW / 2, canDrop: true, dropT: 0, over: false, paused: false, started: Date.now(), playMs: 0, combo: 0, comboT: 0, particles: [], floats: [], shake: 0, flash: 0, warn: 0, danger: false, comboText: null, lastT: 0, id: 1 };
+  return { bodies: [], score: 0, merges: 0, maxLv: 0, held: pickDrop(), next: pickDrop(), holdX: SW / 2, canDrop: true, dropT: 0, over: false, paused: false, started: Date.now(), playMs: 0, combo: 0, comboT: 0, particles: [], floats: [], shake: 0, flash: 0, hitStop: 0, worst: 0, danger: false, comboText: null, lastT: 0, id: 1 };
 }
 function addBody(x, y, lv, opts = {}) {
   const b = { id: G.id++, x, y, ox: x, oy: y, r: RADII[lv], lv, ang: 0, sq: 0, free: !!opts.free, overT: 0, blink: 1.5 + Math.random() * 4, blinkT: 0, happy: opts.happy ? .7 : 0, born: G.playMs, merging: false, targetR: 0, r0: 0 };
@@ -317,7 +321,7 @@ function resolveMerges(pairs) {
     const mul = Math.min(G.combo, 4);
     if (a.lv >= MAXLV) {
       const pts = 100 * mul; G.score += pts; G.merges++;
-      burst(x, y, THEMES.mongle.colors[MAXLV], 40, 7); floatText(x, y - 20, `+${pts}`, '#ffe36b', 30); G.flash = 1; G.shake = Math.max(G.shake, 14); sfx.big(); haptic();
+      burst(x, y, THEMES.mongle.colors[MAXLV], 40, 7); floatText(x, y - 20, `+${pts}`, '#ffe36b', 30); G.flash = 1; G.shake = Math.max(G.shake, 14); if (P.fx && !reduced) G.hitStop = .1; sfx.big(); haptic();
       G.comboText = { t: 0, txt: '몽글 폭발!' };
     } else {
       const lv = a.lv + 1, pts = VALUE[lv] * mul;
@@ -325,7 +329,7 @@ function resolveMerges(pairs) {
       G.score += pts; G.merges++; G.maxLv = Math.max(G.maxLv, lv);
       burst(x, y, theme().colors[lv], 10 + lv * 2, 3 + lv * .4);
       floatText(x, y - nb.r - 6, `+${pts}`, mul > 1 ? '#ffe36b' : '#fff', 16 + lv);
-      if (lv >= 5 && P.fx && !reduced) G.shake = Math.max(G.shake, 2 + (lv - 4) * 1.6);
+      if (lv >= 5 && P.fx && !reduced) { G.shake = Math.max(G.shake, 2 + (lv - 4) * 1.6); if (lv >= 8) G.hitStop = Math.max(G.hitStop, .06); }
       if (lv === MAXLV) { G.flash = 1; sfx.big(); G.comboText = { t: 0, txt: `${theme().names[lv]} 탄생!` }; }
       else sfx.merge(lv, mul);
       if (lv >= 4) haptic();
@@ -344,7 +348,7 @@ function floatText(x, y, txt, color, size) { G.floats.push({ x, y, txt, color, s
 function update(dt) {
   if (!G || G.over || G.paused) return;
   G.playMs += dt * 1000;
-  physics(dt);
+  if (G.hitStop > 0) G.hitStop -= dt; else physics(dt); /* brief freeze on big merges */
   G.dropT += dt;
   if (!G.canDrop) { const lb = G.bodies.find(b => b.id === G.lastDrop); if (G.dropT > .55 || (lb && !lb.free) || !lb) G.canDrop = true; }
   /* danger / game over */
@@ -355,7 +359,7 @@ function update(dt) {
     if (settled && (b.y - b.r) < DANGER_Y) b.overT += dt; else b.overT = 0;
     worst = Math.max(worst, b.overT);
   }
-  G.danger = worst > .25;
+  G.worst = worst; G.danger = worst > .25;
   if (worst > 1.6) { gameOver(); return; }
   /* decorations */
   for (const b of G.bodies) { b.blinkT += dt; if (b.blinkT > b.blink) { b.blinkT = -0.13; b.blink = 2 + Math.random() * 4; } if (b.happy > 0) b.happy -= dt; }
@@ -431,7 +435,10 @@ function draw() {
   ctx.save(); ctx.setLineDash([8, 7]); ctx.lineWidth = 2;
   ctx.strokeStyle = warn ? `rgba(255,96,120,${.55 + .45 * Math.sin(performance.now() / 90)})` : 'rgba(255,255,255,.25)';
   ctx.beginPath(); ctx.moveTo(BOX.l + 6, DANGER_Y); ctx.lineTo(BOX.r - 6, DANGER_Y); ctx.stroke(); ctx.restore();
-  if (warn) { ctx.font = '700 12px "Noto Sans KR",sans-serif'; ctx.fillStyle = 'rgba(255,120,140,.95)'; ctx.textAlign = 'right'; ctx.fillText('위험!', BOX.r - 10, DANGER_Y - 8); }
+  if (warn) {
+    ctx.font = '700 12px "Noto Sans KR",sans-serif'; ctx.fillStyle = 'rgba(255,120,140,.95)'; ctx.textAlign = 'right'; ctx.fillText('위험!', BOX.r - 10, DANGER_Y - 8);
+    const k = clamp(G.worst / 1.6, 0, 1); ctx.fillStyle = 'rgba(255,96,120,.85)'; ctx.fillRect(BOX.l + 6, DANGER_Y + 4, (BOX.r - BOX.l - 12) * k, 3);
+  }
   if (G) {
     /* guide line & held */
     const r = RADII[G.held]; const hx = clamp(G.holdX, BOX.l + r + 1, BOX.r - r - 1);
@@ -452,7 +459,8 @@ function draw() {
     ctx.globalAlpha = 1;
     for (const f of G.floats) { const k = 1 - f.t; ctx.globalAlpha = Math.min(1, k * 1.6); ctx.font = `${f.size}px Jua,"Noto Sans KR",sans-serif`; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(30,20,50,.6)'; ctx.strokeText(f.txt, f.x, f.y); ctx.fillStyle = f.color; ctx.fillText(f.txt, f.x, f.y); }
     ctx.globalAlpha = 1;
-    /* HUD */
+    /* HUD: drawn without the shake offset so it stays put */
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, offX * dpr, offY * dpr);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.font = '700 12px "Noto Sans KR",sans-serif'; ctx.fillStyle = 'rgba(255,246,238,.65)'; ctx.fillText('점수', 20, 30);
     ctx.fillText(`최고 ${Math.max(P.best, G.score)}`, 58, 30);
@@ -515,6 +523,8 @@ function startGame() { G = newGame(); acc = 0; hideAll(); $('#hud-btns').hidden 
 function togglePause() { if (!G || G.over) return; G.paused = !G.paused; if (G.paused) { $('#pause-score').innerHTML = `<span>지금 점수<b>${G.score}</b></span><span>최고<b>${P.best}</b></span>`; show('ov-pause'); } else hideAll(); }
 function showOver(newBest) {
   $('#go-score').textContent = String(G.score); $('#go-newbest').hidden = !newBest;
+  const gap = P.best - G.score; const near = !newBest && gap > 0 && gap <= Math.max(60, P.best * .12);
+  $('#go-near').hidden = !near; if (near) $('#go-near').textContent = `아깝다! 최고 기록까지 ${gap}점`;
   $('#go-merges').textContent = String(G.merges); $('#go-time').textContent = fmtTime(G.playMs); $('#go-best').textContent = String(P.best);
   const th = theme(); const lv = G.maxLv;
   $('#go-bigname').textContent = lv > 0 ? th.names[lv] : '아직 합치기 전';
@@ -531,6 +541,7 @@ function renderStart() {
 function renderSettings() {
   document.querySelectorAll('#set-theme button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === P.theme)));
   $('#set-sound').setAttribute('aria-checked', String(P.sound)); $('#set-hapt').setAttribute('aria-checked', String(P.haptics)); $('#set-fx').setAttribute('aria-checked', String(P.fx)); $('#set-guide').setAttribute('aria-checked', String(P.guide));
+  $('#tap-hapt').disabled = !P.haptics;
   $('#ico-sound').innerHTML = P.sound ? '<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/>' : '<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M17 9l4 6M21 9l-4 6"/>';
 }
 let settingsFrom = 'start';
@@ -555,7 +566,9 @@ $('#btn-share').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(text); toast('점수를 복사했어요. 붙여 넣어 자랑하세요!'); } catch (e) { toast(`${G.score}점 · 캡처해서 자랑하세요!`); }
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.over && !G.paused) togglePause(); last = performance.now(); });
-document.addEventListener('pointerdown', () => { if (P.sound) audio(); }, { once: true, passive: true });
+const UNLOCK_EVENTS = ['touchend', 'pointerup', 'click', 'keydown'];
+const unlockAudio = () => { if (P.sound) audio(); UNLOCK_EVENTS.forEach(t => document.removeEventListener(t, unlockAudio)); };
+UNLOCK_EVENTS.forEach(t => document.addEventListener(t, unlockAudio, { passive: true }));
 
 /* ───────── hot reload snapshot (artifact viewer) ───────── */
 function snapshot() { if (!G || G.over) return { P }; return { P, G: { ...G, particles: [], floats: [], comboText: null, bodies: G.bodies.map(b => ({ ...b })) } }; }

@@ -295,6 +295,17 @@ select.input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w
 .modal p{margin:0;color:var(--fg-2);font-size:14px;line-height:1.5}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:80}
 .hapt{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden}
+/* iOS 18+ ticks a haptic when a real tap lands on a label wrapping a switch; the label covers each primary tap target */
+.hapt-in{position:absolute;inset:0;display:block;border-radius:inherit;cursor:pointer}
+.hapt-in input{position:absolute;visibility:hidden;width:1px;height:1px;margin:0}
+:root[data-hapt="off"] .hapt-in{display:none}
+.check,.hbtn,.hcheck,.composer .add,.ctrls .main{position:relative}
+@media (display-mode:standalone){
+  .tabbar{padding-bottom:calc(max(env(safe-area-inset-bottom,0px),14px) + 8px)}
+  .fab{bottom:calc(max(env(safe-area-inset-bottom,0px),14px) + 86px)}
+  .toast-wrap{bottom:calc(max(env(safe-area-inset-bottom,0px),14px) + 84px)}
+  .sheet{padding-bottom:calc(max(env(safe-area-inset-bottom,0px),14px) + 22px)}
+}
 @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
 .pop{animation:pop .3s cubic-bezier(.2,1.2,.4,1)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
@@ -314,7 +325,7 @@ select.input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w
       <div class="composer card">
         <div class="row">
           <input class="input" id="composer" type="text" placeholder="할 일 추가 · 예: 금요일까지 보고서" autocomplete="off" enterkeyhint="done" aria-label="할 일 입력">
-          <button class="add" id="composer-add" aria-label="추가" disabled><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button class="add" id="composer-add" aria-label="추가" disabled><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><label class="hapt-in"><input type="checkbox" switch tabindex="-1" aria-hidden="true"></label></button>
         </div>
         <div class="hint" id="composer-hint"><span>날짜를 같이 적으면 자동으로 알아들어요 (오늘·내일·금요일·10/15·3일 후)</span></div>
         <div class="chips" id="composer-chips">
@@ -344,7 +355,7 @@ select.input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w
         </div>
         <div class="ctrls">
           <button class="side" id="focus-reset" aria-label="초기화"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
-          <button class="main" id="focus-toggle" aria-label="시작"><svg viewBox="0 0 24 24" id="focus-icon"><path d="M7 4l13 8-13 8z" fill="currentColor"/></svg></button>
+          <button class="main" id="focus-toggle" aria-label="시작"><svg viewBox="0 0 24 24" id="focus-icon"><path d="M7 4l13 8-13 8z" fill="currentColor"/></svg><label class="hapt-in"><input type="checkbox" switch tabindex="-1" aria-hidden="true"></label></button>
           <button class="side" id="focus-skip" aria-label="다음 단계로"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4l10 8-10 8z" fill="currentColor" stroke="none"/><path d="M19 5v14"/></svg></button>
         </div>
         <div class="linkrow"><select class="input" id="focus-task" aria-label="집중할 할 일"></select></div>
@@ -537,7 +548,7 @@ const plain = o => JSON.parse(JSON.stringify(o));
 
 /* ───────────── sound & haptics ───────────── */
 let AC = null;
-function audio() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); return AC; } catch (e) { return null; } }
+function audio() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state !== 'running') AC.resume(); return AC; } catch (e) { return null; } }
 function tone(freq, t0, dur, type = 'sine', gain = .08) {
   const ac = audio(); if (!ac) return;
   const o = ac.createOscillator(), g = ac.createGain();
@@ -554,7 +565,10 @@ const sfx = {
   tick() { if (!S.settings.sound) return; tone(880, 0, .05, 'square', .03); },
 };
 function haptic() { if (!S.settings.haptics) return; try { const sw = $('#hapt-switch'); sw.click(); } catch (e) {} }
-document.addEventListener('pointerdown', () => { if (S.settings.sound) audio(); }, { once: true, passive: true });
+/* unlock audio on the first real activation (touchend/click count as user activation on iOS; touchstart does not) */
+const UNLOCK_EVENTS = ['touchend', 'pointerup', 'click', 'keydown'];
+const unlockAudio = () => { if (S.settings.sound) audio(); UNLOCK_EVENTS.forEach(t => document.removeEventListener(t, unlockAudio)); };
+UNLOCK_EVENTS.forEach(t => document.addEventListener(t, unlockAudio, { passive: true }));
 
 /* ───────────── derived data ───────────── */
 const activeHabits = () => S.habits.filter(h => !h.archived);
@@ -587,6 +601,8 @@ function todayScope() {
 }
 
 /* ───────────── UI primitives ───────────── */
+const HAPT = '<label class="hapt-in"><input type="checkbox" switch tabindex="-1" aria-hidden="true"></label>';
+const isHaptEcho = e => e.target && e.target.tagName === 'INPUT' && !!e.target.closest('.hapt-in'); /* the browser re-dispatches a click on the hidden switch; act once */
 const ICON = {
   check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   chev: '<svg class="ico" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
@@ -673,6 +689,7 @@ function render() {
   $('#sample-banner').hidden = !S.tasks.some(x => x.sample) && !S.habits.some(h => h.sample);
   document.documentElement.dataset.theme = S.settings.theme === 'system' ? '' : S.settings.theme;
   if (S.settings.theme === 'system') document.documentElement.removeAttribute('data-theme');
+  document.documentElement.dataset.hapt = S.settings.haptics ? 'on' : 'off';
   const title = $('#tb-title'), sub = $('#tb-sub');
   if (TAB === 'today') { title.textContent = fmtLong(t); sub.textContent = greeting(); renderToday(); }
   else if (TAB === 'habits') { const hs = activeHabits(); title.textContent = '습관'; sub.textContent = hs.length ? `오늘 ${hs.filter(h => h.log && h.log[t]).length}/${hs.length} 완료` : '매일 조금씩, 꾸준히'; renderHabits(); }
@@ -687,7 +704,7 @@ function taskRow(x, t = today(), { compact = false } = {}) {
   return `<div class="task${x.done ? ' done' : ''}" data-id="${x.id}">
     <div class="bg" aria-hidden="true"><span class="l">${x.done ? '↩ 되돌리기' : '✓ 완료'}</span><span class="r">삭제 🗑</span></div>
     <div class="row">
-      <button class="check" data-act="toggle-task" data-id="${x.id}" aria-label="${x.done ? '완료 취소' : '완료'}" aria-pressed="${x.done}"><i>${ICON.check}</i></button>
+      <button class="check" data-act="toggle-task" data-id="${x.id}" aria-label="${x.done ? '완료 취소' : '완료'}" aria-pressed="${x.done}"><i>${ICON.check}</i>${HAPT}</button>
       <div class="body" data-act="open-task" data-id="${x.id}"><div class="t">${esc(x.title)}</div>${meta ? `<div class="m">${meta}</div>` : ''}</div>
       ${compact ? '' : `<button class="open" data-act="open-task" data-id="${x.id}" aria-label="자세히">${ICON.chev}</button>`}
     </div></div>`;
@@ -702,7 +719,7 @@ function renderToday() {
     <div class="msg">${sc.total === 0 ? '아래에 할 일을 적거나 습관을 만들어 보세요.' : `할 일 ${sc.tasksLeft}개 · 습관 ${sc.habitsLeft}개`}</div>
     <div class="meta">${streakMax ? `<span class="pill warn">🔥 최장 연속 ${streakMax}일</span>` : ''}${focusMinsOn(t) ? `<span class="pill accent">⏱ 집중 ${focusMinsOn(t)}분</span>` : ''}${tasksDoneOn(t).length ? `<span class="pill ok">✓ 오늘 완료 ${tasksDoneOn(t).length}</span>` : ''}</div></div>`;
   const hs = activeHabits();
-  $('#today-habits').innerHTML = hs.length ? `<div class="sec-h"><h2>오늘의 습관</h2><span class="cnt">${hs.filter(h => h.log && h.log[t]).length}/${hs.length}</span></div><div class="habit-strip">${hs.map(h => `<button class="hbtn" data-act="toggle-habit" data-id="${h.id}" aria-pressed="${!!(h.log && h.log[t])}" style="--hcolor:color-mix(in srgb,${h.color} 18%,var(--surface));--hline:${h.color}"><span class="face">${h.emoji}</span><span class="name">${esc(h.name)}</span><span class="streak">${habitStreak(h, t) ? '🔥 ' + habitStreak(h, t) : ' '}</span></button>`).join('')}</div>` : '';
+  $('#today-habits').innerHTML = hs.length ? `<div class="sec-h"><h2>오늘의 습관</h2><span class="cnt">${hs.filter(h => h.log && h.log[t]).length}/${hs.length}</span></div><div class="habit-strip">${hs.map(h => `<button class="hbtn" data-act="toggle-habit" data-id="${h.id}" aria-pressed="${!!(h.log && h.log[t])}" style="--hcolor:color-mix(in srgb,${h.color} 18%,var(--surface));--hline:${h.color}"><span class="face">${h.emoji}</span><span class="name">${esc(h.name)}</span><span class="streak">${habitStreak(h, t) ? '🔥 ' + habitStreak(h, t) : ' '}</span>${HAPT}</button>`).join('')}</div>` : '';
   const open = S.tasks.filter(x => !x.done);
   const by = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (b.priority - a.priority) || (a.createdAt - b.createdAt);
   const over = open.filter(x => x.due && diffDays(x.due, t) < 0).sort(by);
@@ -733,7 +750,7 @@ function renderHabits() {
         <div class="st"><span>${st ? `🔥 ${st}일 연속` : '다시 시작해요'}</span><span>이번 주 ${wkc}/${goal === 7 ? '7' : goal}${goal === 7 ? '' : '회'}</span></div>
         <div class="dots" aria-label="이번 주">${wk.map(d => `<i class="${h.log && h.log[d] ? 'on' : ''}${d === t ? ' today' : ''}" title="${d}"></i>`).join('')}</div>
       </div>
-      <button class="hcheck" data-act="toggle-habit" data-id="${h.id}" aria-pressed="${!!(h.log && h.log[t])}" aria-label="오늘 체크">${ICON.check}</button></div>`;
+      <button class="hcheck" data-act="toggle-habit" data-id="${h.id}" aria-pressed="${!!(h.log && h.log[t])}" aria-label="오늘 체크">${ICON.check}${HAPT}</button></div>`;
   }).join('') : `<div class="empty"><b>아직 습관이 없어요</b>오른쪽 아래 + 를 눌러 첫 습관을 만들어 보세요.<br>작게 시작할수록 오래 갑니다.</div>`;
 }
 function renderFocus() {
@@ -1005,7 +1022,7 @@ function focusTick(force = false) {
   $('#focus-skip').hidden = !r;
 }
 setInterval(() => focusTick(), 250);
-$('#focus-toggle').addEventListener('click', () => { const r = S.focus.run; if (!r) focusStart(); else if (r.endAt) focusPause(); else focusResume(); });
+$('#focus-toggle').addEventListener('click', e => { if (isHaptEcho(e)) return; const r = S.focus.run; if (!r) focusStart(); else if (r.endAt) focusPause(); else focusResume(); });
 $('#focus-reset').addEventListener('click', async () => { if (!S.focus.run) return; if (S.focus.run.mode === 'focus' && S.focus.run.total - (S.focus.run.endAt ? S.focus.run.endAt - Date.now() : S.focus.run.remain) > 60000) { if (!await confirmBox({ title: '집중을 중단할까요?', body: '이번 세션은 기록되지 않아요.', ok: '중단' })) return; } focusReset(); });
 $('#focus-skip').addEventListener('click', () => { if (!S.focus.run) return; focusComplete({ silent: S.focus.run.mode !== 'focus' }); });
 $('#focus-mode').addEventListener('click', e => { const b = e.target.closest('button[data-mode]'); if (!b || S.focus.run) { if (b && S.focus.run) toast('진행 중엔 바꿀 수 없어요. 먼저 초기화해 주세요', { ms: 2500 }); return; } S.focus.mode = b.dataset.mode; commit(); });
@@ -1031,7 +1048,7 @@ function compSubmit() {
 }
 comp.addEventListener('input', () => { compDue = undefined; compUpdate(); });
 comp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); compSubmit(); } });
-compAdd.addEventListener('click', compSubmit);
+compAdd.addEventListener('click', e => { if (isHaptEcho(e)) return; compSubmit(); });
 $('#composer-chips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; const q = c.dataset.quick; compDue = q === 'today' ? today() : q === 'tomorrow' ? addDays(today(), 1) : q === 'week' ? nextWeekday(today(), 5) : ''; if (!comp.value.trim()) comp.focus(); compUpdate(); });
 
 /* ───────────── events ───────────── */
@@ -1040,6 +1057,7 @@ $('#btn-settings').addEventListener('click', openSettings);
 $('#fab-habit').addEventListener('click', () => openHabitSheet(null));
 let swiped = false;
 $('#main').addEventListener('click', e => {
+  if (isHaptEcho(e)) return;
   if (swiped) { swiped = false; return; }
   const el = e.target.closest('[data-act]'); if (!el) return;
   const id = el.dataset.id;
@@ -1094,6 +1112,7 @@ function start(snap) {
   render();
   compUpdate();
   cloud.init();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
   try { if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ tab: TAB })); } catch (e) {}
   if ('serviceWorker' in navigator && /github\.io$/.test(location.hostname)) { try { navigator.serviceWorker.register('sw.js'); } catch (e) {} }
 }
