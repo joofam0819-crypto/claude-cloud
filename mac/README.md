@@ -59,6 +59,10 @@ xattr -dr com.apple.quarantine /Applications/ClipMint.app /Applications/Approach
 
 관제탑에서 비행기를 착륙시키는 게임입니다. 트랙패드·마우스만으로 합니다.
 
+| 아침 교대 | 밤 교대 | 업그레이드 선택 |
+|---|---|---|
+| ![](approach/screenshots/shift-morning.jpg) | ![](approach/screenshots/shift-night.jpg) | ![](approach/screenshots/upgrade.jpg) |
+
 **조작**
 - 비행기를 **누른 채 끌어** 길을 그립니다. 손을 떼면 그 길을 따라갑니다.
 - 비행기 색과 **같은 색 활주로**에, 활주로 **화살표 방향**에 맞춰 들어가면 착륙합니다. 파란색 = 활주로 A(제트·대형기), 주황색 = 활주로 B(터보프롭), 녹색 H = 헬리콥터 패드(방향 무관).
