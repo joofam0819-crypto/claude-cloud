@@ -1,0 +1,87 @@
+name: macOS apps
+
+on:
+  push:
+    branches: ['claude/**', 'main']
+    paths:
+      - 'mac/**'
+      - 'scripts/**'
+      - '.github/workflows/mac-build.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a GitHub Release with the built apps'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-tests:
+    name: Game web tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium
+        run: npx --yes playwright@1.56.1 install --with-deps chromium
+      - name: Run game tests
+        run: node mac/tests/run-web-tests.mjs
+
+  mac:
+    name: Build .app bundles (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Toolchain info
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Swift unit tests
+        run: |
+          for p in mac/*/Package.swift; do
+            d="$(dirname "$p")"
+            if [ -d "$d/Tests" ]; then
+              echo "==> swift test in $d"
+              (cd "$d" && swift test)
+            fi
+          done
+      - name: Build apps
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          mkdir -p dist
+          for p in mac/*/app.conf; do
+            d="$(dirname "$p")"
+            scripts/build-mac-app.sh "$d" dist
+          done
+          rm -rf dist/*.app
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-apps
+          path: |
+            dist/*.zip
+            dist/*.dmg
+          if-no-files-found: error
+      - name: Publish release
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish) ||
+          (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]'))
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mac-v1.0.${{ github.run_number }}
+          name: 맥북 앱·게임 1.0 (build ${{ github.run_number }})
+          prerelease: false
+          files: |
+            dist/*.dmg
+            dist/*.zip
+          body_path: mac/RELEASE_NOTES.md
