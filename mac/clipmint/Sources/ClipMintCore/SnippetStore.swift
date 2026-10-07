@@ -33,10 +33,18 @@ public final class SnippetStore {
         onChange?()
     }
 
+    /// Reorders like SwiftUI's `onMove`: moves the items at `fromOffsets` so they start at `toOffset` (an index into the original array).
     public func move(fromOffsets: IndexSet, toOffset: Int) {
-        var arr = sorted
-        arr.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        for (i, item) in arr.enumerated() { var s = item; s.sortIndex = i; update(s) }
+        let arr = sorted
+        let moving = fromOffsets.sorted().compactMap { $0 < arr.count ? arr[$0] : nil }
+        var remaining: [Snippet] = []
+        var insertAt = min(max(0, toOffset), arr.count)
+        for (i, item) in arr.enumerated() {
+            if fromOffsets.contains(i) { if i < toOffset { insertAt -= 1 } } else { remaining.append(item) }
+        }
+        insertAt = min(max(0, insertAt), remaining.count)
+        remaining.insert(contentsOf: moving, at: insertAt)
+        for (i, item) in remaining.enumerated() { var s = item; s.sortIndex = i; update(s) }
     }
 
     public var sorted: [Snippet] { snippets.sorted { $0.sortIndex < $1.sortIndex } }

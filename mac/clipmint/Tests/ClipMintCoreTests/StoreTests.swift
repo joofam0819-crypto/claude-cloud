@@ -105,3 +105,14 @@ final class StoreTests: XCTestCase {
         XCTAssertNil(s.snippets.first { $0.id == n.id })
     }
 }
+
+final class SnippetMoveTests: XCTestCase {
+    func testMoveSemanticsMatchSwiftUI() {
+        let s = SnippetStore()
+        for t in ["a", "b", "c", "d"] { s.add(Snippet(title: t, body: t)) }
+        s.move(fromOffsets: IndexSet(integer: 0), toOffset: 3)   // a after c  -> b c a d
+        XCTAssertEqual(s.sorted.map { $0.title }, ["b", "c", "a", "d"])
+        s.move(fromOffsets: IndexSet(integer: 3), toOffset: 0)   // d to front -> d b c a
+        XCTAssertEqual(s.sorted.map { $0.title }, ["d", "b", "c", "a"])
+    }
+}
