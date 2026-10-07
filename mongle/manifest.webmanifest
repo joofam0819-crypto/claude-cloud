@@ -1,0 +1,17 @@
+{
+  "name": "몽글몽글",
+  "short_name": "몽글몽글",
+  "description": "같은 몽글이를 붙이면 더 큰 몽글이가 돼요. 손가락 하나로 하는 물리 합치기 퍼즐.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1b1a3a",
+  "theme_color": "#1b1a3a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
