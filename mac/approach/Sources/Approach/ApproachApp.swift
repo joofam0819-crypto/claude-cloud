@@ -4,7 +4,7 @@ import WebKit
 // MARK: - App
 
 @main
-struct GameApp: App {
+struct ApproachApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -20,7 +20,7 @@ struct GameApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("게임") {
-                Button("전체 화면 전환") {
+                Button("전체 화면 전환 (F)") {
                     NSApp.keyWindow?.toggleFullScreen(nil)
                 }
                 .keyboardShortcut("f", modifiers: [.command, .control])
@@ -28,6 +28,9 @@ struct GameApp: App {
                 Button("진행 기록 초기화…") {
                     GameBridge.shared.confirmReset()
                 }
+                Divider()
+                Button("조작법: 비행기를 누른 채 끌어 길을 그리세요") {}
+                    .disabled(true)
             }
         }
     }
@@ -56,6 +59,12 @@ final class GameBridge: NSObject, WKScriptMessageHandler {
             NSApp.terminate(nil)
         case "title":
             if let t = body["value"] as? String { webView?.window?.title = t }
+        case "copy":
+            if let t = body["value"] as? String {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(t, forType: .string)
+            }
         default:
             break
         }

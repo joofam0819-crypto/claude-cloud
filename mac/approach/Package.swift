@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "GameShell",
+    name: "Approach",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "GameShell",
-            path: "Sources/GameShell"
+            name: "Approach",
+            path: "Sources/Approach"
         )
     ]
 )

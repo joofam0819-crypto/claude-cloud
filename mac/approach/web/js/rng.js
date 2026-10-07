@@ -12,3 +12,5 @@ class RNG {
 }
 function hashString(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function dailySeed(date = new Date()) { const k = `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`; return hashString('daily:' + k); }
+
+if (typeof module !== "undefined") module.exports = { RNG, hashString, dailySeed };

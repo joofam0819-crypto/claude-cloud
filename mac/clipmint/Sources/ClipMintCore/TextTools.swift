@@ -40,7 +40,7 @@ public enum TextTools {
         var out: [String] = []
         var lastBlank = false
         for raw in lines {
-            let line = raw.replacingOccurrences(of: "[ \\t\\u{00A0}]+", with: " ", options: .regularExpression)
+            let line = raw.replacingOccurrences(of: "[ \\t\u{00A0}]+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespaces)
             if line.isEmpty {
                 if !lastBlank && !out.isEmpty { out.append("") }

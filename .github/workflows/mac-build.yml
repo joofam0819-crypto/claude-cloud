@@ -3,10 +3,6 @@ name: macOS apps
 on:
   push:
     branches: ['claude/**', 'main']
-    paths:
-      - 'mac/**'
-      - 'scripts/**'
-      - '.github/workflows/mac-build.yml'
   workflow_dispatch:
     inputs:
       publish:
@@ -32,7 +28,11 @@ jobs:
       - name: Install Playwright package (browsers are preinstalled in the image)
         working-directory: mac/tests
         run: npm install --no-save --no-audit --no-fund playwright@1.56.1
-      - name: Run game tests
+      - name: Simulation unit tests (Node)
+        run: node mac/tests/sim.test.mjs
+      - name: Balance report (AI dispatcher, 12 seeds)
+        run: node mac/tests/balance.mjs 12 6 12
+      - name: Browser tests (Playwright)
         run: node mac/tests/run-web-tests.mjs
 
   mac:

@@ -28,7 +28,7 @@ const CONTENT = (() => {
   /* Difficulty curve per shift (1-based). Tuned with the headless balance sim. */
   function shiftConfig(n, daily) {
     const k = Math.max(1, n);
-    const interval0 = Math.max(2.6, 9.5 * Math.pow(0.86, k - 1));   // seconds between spawns at shift start
+    const interval0 = Math.max(2.8, 10 * Math.pow(0.885, k - 1));   // seconds between spawns at shift start
     const interval1 = Math.max(2.0, interval0 * 0.62);               // ... at shift end
     return {
       index: k,
