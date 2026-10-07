@@ -1,0 +1,121 @@
+name: macOS app
+
+on:
+  push:
+    branches: ['claude/**', 'main']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a GitHub Release with the built apps'
+        type: boolean
+        default: false
+      screenshots:
+        description: 'Launch the app on the runner and capture a screenshot'
+        type: boolean
+        default: false
+      delete_old_releases:
+        description: 'Delete all existing releases (and their tags) before publishing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mac:
+    name: Build .app bundles (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Toolchain info
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Swift unit tests
+        run: |
+          for p in mac/*/Package.swift; do
+            d="$(dirname "$p")"
+            if [ -d "$d/Tests" ]; then
+              echo "==> swift test in $d"
+              (cd "$d" && swift test)
+            fi
+          done
+      - name: Build apps
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          mkdir -p dist
+          for p in mac/*/app.conf; do
+            d="$(dirname "$p")"
+            scripts/build-mac-app.sh "$d" dist
+          done
+          rm -rf dist/*.app
+          ls -la dist
+      - name: Screenshot of the running app
+        if: github.event_name == 'workflow_dispatch' && inputs.screenshots
+        run: |
+          set +e
+          mkdir -p shots
+          ditto -x -k dist/ClipMint-*-mac.zip shots
+          system_profiler SPDisplaysDataType | grep -i resolution || true
+          defaults write dev.joofam.clipmint language ko
+          open shots/ClipMint.app
+          sleep 5
+          printf '%s' '안녕하세요, 이장수입니다. 첨부한 인증서 사본을 확인 부탁드립니다.' | pbcopy; sleep 1
+          printf '%s' 'https://eur-lex.europa.eu/eli/reg/2017/745/oj' | pbcopy; sleep 1
+          printf '%s' 'The manufacturer shall ensure that the device is de-
+          signed and manufactured in accordance with the require-
+          ments of this Regulation.' | pbcopy; sleep 1
+          printf '%s' '#1a73e8' | pbcopy; sleep 1
+          printf '%s' 'KR25/00000112 Issue 5 — Niti-S Pyloric stent (Class IIb)' | pbcopy; sleep 2
+          screencapture -x -t png shots/clipmint-full.png
+          ls -la shots
+          osascript -e 'tell application "ClipMint" to quit' || true
+          rm -rf shots/*.app
+          ls -la shots
+          # commit the screenshots to the branch so they can be pulled without artifact downloads
+          mkdir -p mac/screenshots && cp shots/*.png mac/screenshots/ || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mac/screenshots
+          git commit -m "Add screenshots captured on the macOS runner [skip ci]" || true
+          git push origin HEAD:${{ github.ref_name }} || true
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && inputs.screenshots
+        with:
+          name: screenshots
+          path: shots/*.png
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-apps
+          path: |
+            dist/*.zip
+            dist/*.dmg
+          if-no-files-found: error
+      - name: Delete old releases
+        if: github.event_name == 'workflow_dispatch' && inputs.delete_old_releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in $(gh release list --limit 100 --json tagName --jq '.[].tagName'); do
+            echo "deleting release $tag"; gh release delete "$tag" --cleanup-tag -y || true
+          done
+      - name: Publish release
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish) ||
+          (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]'))
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mac-v1.0.${{ github.run_number }}
+          name: ClipMint 1.0 (build ${{ github.run_number }})
+          prerelease: false
+          files: |
+            dist/*.dmg
+            dist/*.zip
+          body_path: mac/RELEASE_NOTES.md
