@@ -1,4 +1,4 @@
-name: macOS apps
+name: macOS app
 
 on:
   push:
@@ -10,7 +10,11 @@ on:
         type: boolean
         default: false
       screenshots:
-        description: 'Launch both apps on the runner and capture screenshots'
+        description: 'Launch the app on the runner and capture a screenshot'
+        type: boolean
+        default: false
+      delete_old_releases:
+        description: 'Delete all existing releases (and their tags) before publishing'
         type: boolean
         default: false
 
@@ -22,23 +26,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  web-tests:
-    name: Game web tests (Playwright)
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.56.1-noble
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install Playwright package (browsers are preinstalled in the image)
-        working-directory: mac/tests
-        run: npm install --no-save --no-audit --no-fund playwright@1.56.1
-      - name: Simulation unit tests (Node)
-        run: node mac/tests/sim.test.mjs
-      - name: Balance report (AI dispatcher, 12 seeds)
-        run: node mac/tests/balance.mjs 12 6 12
-      - name: Browser tests (Playwright)
-        run: node mac/tests/run-web-tests.mjs
-
   mac:
     name: Build .app bundles (macOS)
     runs-on: macos-latest
@@ -69,13 +56,12 @@ jobs:
           done
           rm -rf dist/*.app
           ls -la dist
-      - name: Screenshots of the running apps
+      - name: Screenshot of the running app
         if: github.event_name == 'workflow_dispatch' && inputs.screenshots
         run: |
           set +e
           mkdir -p shots
           ditto -x -k dist/ClipMint-*-mac.zip shots
-          ditto -x -k dist/Approach-*-mac.zip shots
           system_profiler SPDisplaysDataType | grep -i resolution || true
           defaults write dev.joofam.clipmint language ko
           open shots/ClipMint.app
@@ -90,10 +76,6 @@ jobs:
           screencapture -x -t png shots/clipmint-full.png
           ls -la shots
           osascript -e 'tell application "ClipMint" to quit' || true
-          open shots/Approach.app
-          sleep 8
-          screencapture -x -t png shots/approach-full.png
-          osascript -e 'tell application "Approach" to quit' || true
           rm -rf shots/*.app
           ls -la shots
           # commit the screenshots to the branch so they can be pulled without artifact downloads
@@ -116,6 +98,14 @@ jobs:
             dist/*.zip
             dist/*.dmg
           if-no-files-found: error
+      - name: Delete old releases
+        if: github.event_name == 'workflow_dispatch' && inputs.delete_old_releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in $(gh release list --limit 100 --json tagName --jq '.[].tagName'); do
+            echo "deleting release $tag"; gh release delete "$tag" --cleanup-tag -y || true
+          done
       - name: Publish release
         if: >-
           (github.event_name == 'workflow_dispatch' && inputs.publish) ||
@@ -123,7 +113,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mac-v1.0.${{ github.run_number }}
-          name: 맥북 앱·게임 1.0 (build ${{ github.run_number }})
+          name: ClipMint 1.0 (build ${{ github.run_number }})
           prerelease: false
           files: |
             dist/*.dmg
