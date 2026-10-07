@@ -17,6 +17,10 @@ on:
         description: 'Delete all existing releases (and their tags) before publishing'
         type: boolean
         default: false
+      delete_merged_branches:
+        description: 'Delete every branch already merged into main (except main)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -98,6 +102,17 @@ jobs:
             dist/*.zip
             dist/*.dmg
           if-no-files-found: error
+      - name: Delete merged branches
+        if: github.event_name == 'workflow_dispatch' && inputs.delete_merged_branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R: ${{ github.repository }}
+        run: |
+          for b in $(gh api "repos/$R/branches?per_page=100" --jq '.[].name'); do
+            [ "$b" = "main" ] && continue
+            ahead=$(gh api "repos/$R/compare/main...$b" --jq '.ahead_by' || echo 1)
+            if [ "$ahead" = "0" ]; then echo "deleting merged branch $b"; gh api -X DELETE "repos/$R/git/refs/heads/$b" || true; else echo "keeping $b (ahead by $ahead)"; fi
+          done
       - name: Delete old releases
         if: github.event_name == 'workflow_dispatch' && inputs.delete_old_releases
         env:
