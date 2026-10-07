@@ -288,7 +288,7 @@ function stepOnce(merges) {
           if (vn < -2.5) { const s = clamp(-vn * .025, 0, .2); a.sq = Math.max(a.sq, s); c.sq = Math.max(c.sq, s); }
           /* light friction: damp tangential relative motion */
           const tx = -ny, ty = nx; const vt = rvx * tx + rvy * ty; const f = vt * .08;
-          a.ox -= tx * f * wa * -1 * 0; /* (kept simple: no tangential impulse on a) */
+          a.ox -= tx * f * wa; a.oy -= ty * f * wa;
           c.ox += tx * f * wc; c.oy += ty * f * wc;
         }
         if (a.lv === c.lv && !a.merging && !c.merging && a.lv <= MAXLV) { a.merging = c.merging = true; merges.push([a, c]); }
@@ -345,14 +345,15 @@ function update(dt) {
   if (!G || G.over || G.paused) return;
   G.playMs += dt * 1000;
   physics(dt);
-  if (!G.canDrop) { G.dropT += dt; const lb = G.bodies.find(b => b.id === G.lastDrop); if (G.dropT > .55 || (lb && !lb.free) || !lb) G.canDrop = true; }
+  G.dropT += dt;
+  if (!G.canDrop) { const lb = G.bodies.find(b => b.id === G.lastDrop); if (G.dropT > .55 || (lb && !lb.free) || !lb) G.canDrop = true; }
   /* danger / game over */
   let worst = 0;
   for (const b of G.bodies) {
-    const above = (b.y - b.r) < DANGER_Y && !b.free && b.id !== G.lastDrop;
-    if (above && !b.free) b.overT += dt; else b.overT = 0;
+    /* a resting body above the line counts; the one just dropped gets grace until it has settled a moment */
+    const settled = !b.free && (b.id !== G.lastDrop || G.dropT > .9);
+    if (settled && (b.y - b.r) < DANGER_Y) b.overT += dt; else b.overT = 0;
     worst = Math.max(worst, b.overT);
-    if (b.id === G.lastDrop && !b.free && (b.y - b.r) < DANGER_Y) b.overT += dt;
   }
   G.danger = worst > .25;
   if (worst > 1.6) { gameOver(); return; }

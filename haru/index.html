@@ -320,7 +320,7 @@ select.input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w
         <div class="chips" id="composer-chips">
           <button class="chip" data-quick="today">오늘</button>
           <button class="chip" data-quick="tomorrow">내일</button>
-          <button class="chip" data-quick="week">이번 주 금요일</button>
+          <button class="chip" data-quick="week">금요일</button>
           <button class="chip" data-quick="none">날짜 없음</button>
         </div>
       </div>
@@ -722,7 +722,7 @@ function renderHabits() {
   const wk = weekDays(t, S.settings.weekStart);
   const rate = hs.length ? Math.round(hs.reduce((n, h) => n + Math.min(1, habitWeekCount(h, t) / (h.goal || 7)), 0) / hs.length * 100) : 0;
   const best = hs.reduce((m, h) => Math.max(m, habitStreak(h, t)), 0);
-  const month = (() => { let c = 0, tot = 0; for (let i = 0; i < 30; i++) { const d = addDays(t, -i); for (const h of hs) { if (diffDays(d, ymd(new Date(h.createdAt || 0))) >= 0 || true) { tot++; if (h.log && h.log[d]) c++; } } } return tot ? Math.round(c / tot * 100) : 0; })();
+  const month = (() => { let c = 0, tot = 0; for (let i = 0; i < 30; i++) { const d = addDays(t, -i); for (const h of hs) { tot++; if (h.log && h.log[d]) c++; } } return tot ? Math.round(c / tot * 100) : 0; })();
   $('#habits-summary').innerHTML = hs.length ? `<div class="stat"><b class="num">${rate}<small>%</small></b><span>이번 주 달성</span></div><div class="stat"><b class="num">${best}<small>일</small></b><span>최장 연속 중</span></div><div class="stat"><b class="num">${month}<small>%</small></b><span>최근 30일</span></div>` : '';
   $('#habits-list').innerHTML = hs.length ? hs.map(h => {
     const wkc = habitWeekCount(h, t), goal = h.goal || 7, st = habitStreak(h, t);
@@ -831,7 +831,7 @@ function openTaskSheet(id) {
   openSheet(`${sheetHead(x ? '할 일' : '새 할 일')}
     <div class="field"><label for="ts-title">내용</label><input class="input" id="ts-title" type="text" value="${esc(v.title)}" placeholder="무엇을 할까요?"></div>
     <div class="field"><label>날짜</label><div class="chips" id="ts-chips">
-      <button class="chip" data-d="" type="button">없음</button><button class="chip" data-d="${t}" type="button">오늘</button><button class="chip" data-d="${addDays(t, 1)}" type="button">내일</button><button class="chip" data-d="${nextWeekday(t, 5)}" type="button">이번 주 금요일</button><button class="chip" data-d="${addDays(weekStartOf(t, S.settings.weekStart), 7)}" type="button">다음 주</button></div>
+      <button class="chip" data-d="" type="button">없음</button><button class="chip" data-d="${t}" type="button">오늘</button><button class="chip" data-d="${addDays(t, 1)}" type="button">내일</button><button class="chip" data-d="${nextWeekday(t, 5)}" type="button">금요일</button><button class="chip" data-d="${addDays(weekStartOf(t, S.settings.weekStart), 7)}" type="button">다음 주</button></div>
       <input class="input" id="ts-due" type="date" value="${v.due || ''}" aria-label="날짜 직접 선택"></div>
     <div class="kv" style="border-top:0;padding:4px 0"><div><div class="k">★ 중요</div><div class="d">목록 위쪽에 표시돼요</div></div><button class="switch" id="ts-pri" role="switch" aria-checked="${!!v.priority}" aria-label="중요"></button></div>
     <div class="field"><label for="ts-note">메모</label><textarea class="input" id="ts-note" placeholder="링크, 준비물, 생각…">${esc(v.note || '')}</textarea></div>
