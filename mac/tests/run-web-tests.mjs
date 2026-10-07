@@ -38,11 +38,11 @@ check(await page.evaluate(() => window.__game.game.attract && window.__game.game
 
 await page.click('#btn-start');
 check(await page.evaluate(() => window.__game.mode === 'playing' && window.__game.sim.state === 'running'), 'start button begins a run');
-await page.evaluate(() => window.__game.step(12));
-
-// draw a path with the mouse from a fixed-wing aircraft to its runway
+// deterministic seed, then isolate one fixed-wing aircraft so unattended traffic cannot collide during the test
+await page.evaluate(() => { window.__game.start(false, 20261007); window.__game.step(12); });
 const info = await page.evaluate(() => {
   const s = window.__game.sim; const a = s.aircraft.find(q => q.state === 'flying' && q.dest !== 'H') || s.spawnAircraft('prop');
+  s.aircraft = s.aircraft.filter(q => q.id === a.id); s.spawnTimer = 1e9; s.incoming = [];
   const r = s.airport.runways.find(r => r.id === a.dest); return { id: a.id, ax: a.x, ay: a.y, r: { tx: r.tx, ty: r.ty, dx: r.dx, dy: r.dy } };
 });
 const pts = []; const fx = info.r.tx - info.r.dx * 140, fy = info.r.ty - info.r.dy * 140;
@@ -59,6 +59,7 @@ check(flight.landings >= 1 && flight.score >= 100, `the aircraft lands and score
 check(await page.evaluate(() => window.__game.particles() >= 0 && document.getElementById('hud').classList.contains('on')), 'HUD is visible during play');
 
 // pause / resume via keyboard
+check(await page.evaluate(() => window.__game.mode === 'playing' && window.__game.sim.state === 'running'), 'run is still in progress after the landing');
 await page.keyboard.press('Escape'); check(await page.evaluate(() => window.__game.mode === 'paused'), 'Escape pauses');
 await page.keyboard.press('Escape'); check(await page.evaluate(() => window.__game.mode === 'playing'), 'Escape resumes');
 
