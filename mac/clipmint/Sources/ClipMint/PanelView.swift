@@ -91,13 +91,13 @@ struct FilterChips: View {
                 ForEach(items, id: \.0) { item in
                     let on = state.filter == item.0
                     Button { state.filter = item.0 } label: {
-                        HStack(spacing: 4) { Image(systemName: item.2).font(.system(size: 11, weight: .semibold)); Text(L10n.t(item.1)).font(.system(size: 12, weight: .semibold)) }
-                            .padding(.horizontal, 10).padding(.vertical, 5)
+                        HStack(spacing: 3) { Image(systemName: item.2).font(.system(size: 10, weight: .semibold)); Text(L10n.t(item.1)).font(.system(size: 11.5, weight: .semibold)) }
+                            .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(on ? Color.accentColor.opacity(0.9) : Color.primary.opacity(0.07), in: Capsule())
                             .foregroundStyle(on ? Color.white : Color.primary)
                     }.buttonStyle(.plain)
                 }
-            }.padding(.horizontal, 12).padding(.bottom, 10)
+            }.padding(.horizontal, 10).padding(.bottom, 9)
         }
     }
 }
@@ -347,7 +347,7 @@ struct FooterBar: View {
             Text(L10n.t("footer.paste")); Text(L10n.t("footer.plain")); Text(L10n.t("footer.copy"))
             if !state.showingSnippets { Text(L10n.t("footer.pin")); Text(L10n.t("footer.delete")) }
             Spacer()
-            Text("\(state.clips.count)").monospacedDigit()
+            Text("\(state.clipCount)").monospacedDigit()
         }
         .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
         .padding(.horizontal, 14).padding(.vertical, 8)

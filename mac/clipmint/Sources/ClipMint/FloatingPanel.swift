@@ -12,7 +12,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     let state: AppState
     private(set) var panel: FloatingPanel!
     private var keyMonitor: Any?
-    private let size = NSSize(width: 440, height: 580)
+    private let size = NSSize(width: 470, height: 580)
 
     init(state: AppState) {
         self.state = state

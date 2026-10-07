@@ -17,6 +17,8 @@ final class AppState {
     var toast: String? = nil
     var panelVisible = false
     var accessibilityTrusted = Paster.isTrusted
+    /// Bumped on every store change; list/detail views read it so SwiftUI re-renders (the stores themselves are plain classes).
+    var revision = 0
 
     // derived caches
     private var thumbCache: [String: NSImage] = [:]
@@ -28,14 +30,15 @@ final class AppState {
         clips = ClipStore(clips: loaded, maxItems: Prefs.maxItems)
         if let s = Storage.loadSnippets() { snippets = SnippetStore(snippets: s) }
         else { snippets = SnippetStore(snippets: SnippetStore.defaults(korean: L10n.isKorean)); Storage.saveSnippets(snippets.snippets) }
-        clips.onChange = { [weak self] in self?.scheduleSave() }
-        snippets.onChange = { [weak self] in self?.saveSnippetsNow() }
+        clips.onChange = { [weak self] in self?.revision &+= 1; self?.scheduleSave() }
+        snippets.onChange = { [weak self] in self?.revision &+= 1; self?.saveSnippetsNow() }
     }
 
     // MARK: - Lists
 
-    var visibleClips: [Clip] { clips.filtered(filter, query: query) }
-    var visibleSnippets: [Snippet] { snippets.filtered(query: query) }
+    var visibleClips: [Clip] { _ = revision; return clips.filtered(filter, query: query) }
+    var visibleSnippets: [Snippet] { _ = revision; return snippets.filtered(query: query) }
+    var clipCount: Int { _ = revision; return clips.count }
     var showingSnippets: Bool { filter == .snippets }
 
     func ensureSelection() {
@@ -67,8 +70,8 @@ final class AppState {
         ensureSelection()
     }
 
-    var selectedClip: Clip? { selectedID.flatMap { clips.clip(id: $0) } }
-    var selectedSnippet: Snippet? { selectedSnippetID.flatMap { id in snippets.snippets.first { $0.id == id } } }
+    var selectedClip: Clip? { _ = revision; return selectedID.flatMap { clips.clip(id: $0) } }
+    var selectedSnippet: Snippet? { _ = revision; return selectedSnippetID.flatMap { id in snippets.snippets.first { $0.id == id } } }
 
     // MARK: - Ingest (from the monitor)
 
