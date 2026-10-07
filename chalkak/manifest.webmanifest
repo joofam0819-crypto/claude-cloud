@@ -1,0 +1,17 @@
+{
+  "name": "찰칵",
+  "short_name": "찰칵",
+  "description": "사진 한 장을 반듯한 문서 PDF로. 테두리 자동 인식, 종이 하얗게 보정, 여러 장 묶어 공유. 휴대폰 안에서만 처리.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f6f5",
+  "theme_color": "#0f9d8f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

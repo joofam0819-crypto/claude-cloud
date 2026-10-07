@@ -1,0 +1,17 @@
+{
+  "name": "네모팡",
+  "short_name": "네모팡",
+  "description": "8×8 판에 블록 조각을 끌어다 놓고 줄을 지우는 퍼즐. 시간 제한 없음, 손가락 하나, 매일 바뀌는 오늘의 도전.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#151734",
+  "theme_color": "#151734",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
