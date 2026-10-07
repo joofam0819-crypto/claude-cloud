@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="description" content="8×8 판에 블록 조각을 끌어다 놓고 줄을 지우는 퍼즐. 시간 제한 없음, 손가락 하나, 매일 바뀌는 오늘의 도전.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="네모팡">
+<meta property="og:description" content="8×8 판에 블록 조각을 끌어다 놓고 줄을 지우는 퍼즐. 시간 제한 없음, 손가락 하나, 매일 바뀌는 오늘의 도전.">
+<meta property="og:image" content="https://joofam0819-crypto.github.io/claude-cloud/nemo/og.png">
+<meta property="og:url" content="https://joofam0819-crypto.github.io/claude-cloud/nemo/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="네모팡">
+<meta name="theme-color" content="#151734">
+<title>네모팡</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap">
+<style>
+/* Layout: fixed column — HUD / 8×8 board canvas / 3-slot tray canvas; a full-screen effects canvas carries the dragged piece. Single night-board theme by design. */
+:root{
+  --bg-1:#151734; --bg-2:#242a5c; --board:#1b1e42; --cell:#262b58; --line:rgba(255,255,255,.07);
+  --ink:#f7f4ff; --ink-2:#b9b4d8; --glass:rgba(255,255,255,.08); --edge:rgba(255,255,255,.2);
+  --gold:#ffd166; --mint:#7ef0c4; --coral:#ff6b7a;
+  --f-display:"Jua","Noto Sans KR",-apple-system,"Apple SD Gothic Neo",sans-serif;
+  --f-body:"Noto Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0;padding:0}
+body{background:var(--bg-1);color:var(--ink);font-family:var(--f-body);overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-appearance:none;appearance:none;touch-action:manipulation}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;background:radial-gradient(120% 80% at 50% 0%,var(--bg-2),var(--bg-1) 70%);padding:calc(env(safe-area-inset-top,0px) + 8px) 12px calc(env(safe-area-inset-bottom,0px) + 10px)}
+@media (display-mode:standalone){#app{padding-bottom:calc(max(env(safe-area-inset-bottom,0px),14px) + 10px)}}
+.hud{width:100%;max-width:440px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:2px 4px 6px}
+.hud .l,.hud .r{display:flex;flex-direction:column;gap:2px}
+.hud .r{align-items:flex-end}
+.hud small{font-size:11.5px;font-weight:700;color:var(--ink-2);letter-spacing:.04em}
+.hud b{font-family:var(--f-display);font-weight:400;font-size:38px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.hud .r b{font-size:22px;color:var(--gold)}
+.hud .mid{display:flex;gap:8px}
+.rb{width:42px;height:42px;border-radius:14px;background:var(--glass);border:1.5px solid var(--edge);display:grid;place-items:center;color:var(--ink)}
+.rb svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.rb:active{transform:scale(.93)}
+.combo{height:22px;display:flex;align-items:center;justify-content:center;font-family:var(--f-display);font-size:16px;color:var(--mint);opacity:0;transition:opacity .2s}
+.combo.on{opacity:1}
+.stage{position:relative;flex:1;min-height:0;width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding-bottom:5vh}
+canvas{display:block}
+#board{border-radius:16px;touch-action:none}
+#tray{touch-action:none}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:4}
+.mode{font-size:12.5px;color:var(--ink-2);font-weight:700;text-align:center;height:18px}
+.ov{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:20px;padding-top:calc(env(safe-area-inset-top,0px) + 20px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px);background:rgba(10,10,30,.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;pointer-events:none;transition:opacity .25s}
+.ov.show{opacity:1;pointer-events:auto}
+.panel{width:100%;max-width:380px;max-height:100%;overflow-y:auto;background:linear-gradient(180deg,rgba(52,56,110,.95),rgba(28,31,66,.97));border:1.5px solid var(--edge);border-radius:26px;padding:24px 20px 20px;display:flex;flex-direction:column;gap:14px;box-shadow:0 30px 80px rgba(0,0,0,.5);transform:translateY(14px);transition:transform .3s cubic-bezier(.2,.9,.3,1.2)}
+.ov.show .panel{transform:none}
+.title{font-family:var(--f-display);font-size:48px;line-height:1;text-align:center;color:var(--ink);text-shadow:0 4px 0 rgba(0,0,0,.2);margin:4px 0 0}
+.title i{display:inline-block;width:.62em;height:.62em;border-radius:.14em;vertical-align:-.04em;margin:0 .06em;box-shadow:inset 0 -.1em 0 rgba(0,0,0,.25),inset 0 .08em 0 rgba(255,255,255,.35)}
+.tag{text-align:center;color:var(--ink-2);font-size:14px;line-height:1.55;margin:0}
+.howto{display:flex;flex-direction:column;gap:9px;background:rgba(0,0,0,.2);border-radius:18px;padding:13px 15px;font-size:14px}
+.howto div{display:flex;gap:12px;align-items:center}
+.howto b{font-family:var(--f-display);font-weight:400;font-size:19px;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--gold);color:#2a2048;flex:none}
+.big{font-family:var(--f-display);font-size:23px;padding:15px;border-radius:20px;background:linear-gradient(180deg,#ffd97a,#ffb547);color:#2f2142;text-align:center;box-shadow:0 7px 0 #c47a1d,0 14px 30px rgba(0,0,0,.35);transition:transform .1s,box-shadow .1s;width:100%}
+.big:active{transform:translateY(5px);box-shadow:0 2px 0 #c47a1d,0 8px 20px rgba(0,0,0,.35)}
+.big.alt{background:linear-gradient(180deg,#8ef5d2,#4ed3a6);box-shadow:0 7px 0 #1f8f6a,0 14px 30px rgba(0,0,0,.35);color:#10332a}
+.big.alt:active{box-shadow:0 2px 0 #1f8f6a,0 8px 20px rgba(0,0,0,.35)}
+.row{display:flex;gap:10px}
+.ghost{font-family:var(--f-display);font-size:18px;padding:13px;border-radius:18px;background:var(--glass);border:1.5px solid var(--edge);color:var(--ink);text-align:center;flex:1}
+.ghost:active{transform:scale(.97)}
+.best{display:flex;justify-content:center;gap:18px;color:var(--ink-2);font-size:13px;flex-wrap:wrap}
+.best b{font-family:var(--f-display);font-weight:400;font-size:21px;color:var(--gold);margin-left:6px}
+.go .n{font-family:var(--f-display);font-size:70px;line-height:1;color:var(--gold);text-align:center;text-shadow:0 6px 0 rgba(0,0,0,.2)}
+.go .l{text-align:center;color:var(--ink-2);font-size:14px;margin-top:4px}
+.newbest{display:inline-block;margin-top:8px;padding:5px 12px;border-radius:999px;background:var(--gold);color:#2a2048;font-family:var(--f-display);font-size:15px;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stats div{background:rgba(0,0,0,.2);border-radius:16px;padding:10px 6px;text-align:center}
+.stats b{display:block;font-family:var(--f-display);font-weight:400;font-size:22px;line-height:1.1}
+.stats span{font-size:11.5px;color:var(--ink-2)}
+.opt{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid rgba(255,255,255,.1);gap:12px}
+.opt:first-child{border-top:0}
+.opt .k{font-weight:700;font-size:15px}
+.opt .d{font-size:12px;color:var(--ink-2)}
+.switch{width:52px;height:32px;border-radius:999px;background:rgba(0,0,0,.35);position:relative;flex:none;transition:background .2s;border:1.5px solid var(--edge)}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:25px;height:25px;border-radius:50%;background:#fff;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.switch[aria-checked="true"]{background:#4ed3a6}
+.switch[aria-checked="true"]::after{transform:translateX(20px)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 110px);transform:translate(-50%,16px);background:rgba(20,16,44,.92);border:1.5px solid var(--edge);color:var(--ink);padding:10px 16px;border-radius:14px;font-size:14px;font-weight:700;opacity:0;transition:.25s;z-index:20;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.hapt{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="hud">
+    <div class="l"><small>점수</small><b id="hud-score">0</b></div>
+    <div class="mid"><button class="rb" id="btn-restart" aria-label="처음부터"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button><button class="rb" id="btn-menu" aria-label="메뉴"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button></div>
+    <div class="r"><small>최고</small><b id="hud-best">0</b></div>
+  </div>
+  <div class="combo" id="combo"></div>
+  <div class="stage" id="stage">
+    <canvas id="board" aria-label="블록 판"></canvas>
+    <canvas id="tray" aria-label="조각 받침"></canvas>
+    <div class="mode" id="mode"></div>
+  </div>
+</div>
+<canvas id="fx"></canvas>
+<div class="ov show" id="ov-start"><div class="panel">
+  <h1 class="title"><i style="background:#ff6b7a"></i>네모팡<i style="background:#4d96ff"></i></h1>
+  <p class="tag">조각을 끌어다 놓고, 가로세로 한 줄을 꽉 채우면 사라져요.<br>시간 제한은 없어요. 느긋하게 생각하세요.</p>
+  <div class="howto">
+    <div><b>1</b><span>아래 조각을 손가락으로 끌어 판 위에 놓아요.</span></div>
+    <div><b>2</b><span>한 줄(가로든 세로든)이 꽉 차면 지워지고 점수!</span></div>
+    <div><b>3</b><span>연달아 지우면 콤보. 놓을 자리가 없으면 끝.</span></div>
+  </div>
+  <div class="best" id="start-best"></div>
+  <button class="big" id="btn-resume" hidden>이어하기</button>
+  <button class="big" id="btn-classic">새 게임</button>
+  <button class="big alt" id="btn-daily">오늘의 도전</button>
+  <div class="row"><button class="ghost" id="btn-settings">설정</button></div>
+</div></div>
+<div class="ov" id="ov-pause"><div class="panel">
+  <h2 class="title" style="font-size:36px">잠깐 쉬는 중</h2>
+  <div class="best" id="pause-score"></div>
+  <button class="big" id="btn-continue">계속하기</button>
+  <div class="row"><button class="ghost" id="btn-home">처음으로</button><button class="ghost" id="btn-settings2">설정</button></div>
+</div></div>
+<div class="ov" id="ov-over"><div class="panel go">
+  <div><div class="n" id="go-score">0</div><div class="l" id="go-sub">점</div><div style="text-align:center" id="go-newbest" hidden><span class="newbest">새 기록!</span></div><div class="l" id="go-near" hidden></div></div>
+  <div class="stats"><div><b id="go-lines">0</b><span>지운 줄</span></div><div><b id="go-moves">0</b><span>놓은 조각</span></div><div><b id="go-combo">0</b><span>최고 콤보</span></div></div>
+  <button class="big" id="btn-again">다시 하기</button>
+  <div class="row"><button class="ghost" id="btn-share">자랑하기</button><button class="ghost" id="btn-home2">처음으로</button></div>
+</div></div>
+<div class="ov" id="ov-settings"><div class="panel">
+  <h2 class="title" style="font-size:36px">설정</h2>
+  <div>
+    <div class="opt"><div><div class="k">효과음</div></div><button class="switch" id="set-sound" role="switch" aria-checked="true" aria-label="효과음"></button></div>
+    <div class="opt"><div><div class="k">진동 느낌</div><div class="d">놓을 때 살짝 (지원 기기만)</div></div><button class="switch" id="set-hapt" role="switch" aria-checked="true" aria-label="진동"></button></div>
+    <div class="opt"><div><div class="k">화면 흔들림</div><div class="d">여러 줄 지울 때</div></div><button class="switch" id="set-fx" role="switch" aria-checked="true" aria-label="효과"></button></div>
+    <div class="opt"><div><div class="k">놓일 자리 미리보기</div><div class="d">끌고 있을 때 반투명으로 표시</div></div><button class="switch" id="set-ghost" role="switch" aria-checked="true" aria-label="미리보기"></button></div>
+  </div>
+  <button class="big" id="btn-settings-close">닫기</button>
+  <button class="ghost" id="btn-reset-best" style="font-family:var(--f-body);font-weight:700;font-size:15px">기록 지우기</button>
+</div></div>
+<div class="toast" id="toast"></div>
+<label class="hapt" aria-hidden="true"><input type="checkbox" switch id="hapt-switch" tabindex="-1"></label>
+<script>
+(() => {
+'use strict';
+const N = 8;
+const COLORS = ['#ff6b7a', '#ffa552', '#ffd84d', '#6ee07a', '#49d9d0', '#4d96ff', '#a97bff', '#ff7fc3'];
+/* shapes: cells as [x,y]; ci = colour index; w = draw weight */
+const SH = [];
+const add = (name, cells, ci, w) => SH.push({ name, cells, ci, w, bw: Math.max(...cells.map(c => c[0])) + 1, bh: Math.max(...cells.map(c => c[1])) + 1 });
+add('1', [[0, 0]], 7, 1.4);
+add('2h', [[0, 0], [1, 0]], 2, 1.3); add('2v', [[0, 0], [0, 1]], 2, 1.3);
+add('3h', [[0, 0], [1, 0], [2, 0]], 1, 1.3); add('3v', [[0, 0], [0, 1], [0, 2]], 1, 1.3);
+add('4h', [[0, 0], [1, 0], [2, 0], [3, 0]], 4, 1.1); add('4v', [[0, 0], [0, 1], [0, 2], [0, 3]], 4, 1.1);
+add('5h', [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]], 5, .8); add('5v', [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]], 5, .8);
+add('sq2', [[0, 0], [1, 0], [0, 1], [1, 1]], 3, 1.3);
+add('sq3', [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]], 0, .6);
+add('r23', [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2], [1, 2]], 3, .7); add('r32', [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]], 3, .7);
+[[[0, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [0, 1]], [[0, 0], [1, 0], [1, 1]], [[1, 0], [0, 1], [1, 1]]].forEach((c, i) => add('l3-' + i, c, 6, .9));
+[[[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]], [[0, 0], [1, 0], [2, 0], [0, 1], [0, 2]], [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]], [[2, 0], [2, 1], [0, 2], [1, 2], [2, 2]]].forEach((c, i) => add('L5-' + i, c, 1, .55));
+[[[0, 0], [1, 0], [2, 0], [1, 1]], [[1, 0], [0, 1], [1, 1], [2, 1]], [[0, 0], [0, 1], [0, 2], [1, 1]], [[1, 0], [0, 1], [1, 1], [1, 2]]].forEach((c, i) => add('t-' + i, c, 6, .8));
+[[[1, 0], [2, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [1, 1], [2, 1]], [[0, 0], [0, 1], [1, 1], [1, 2]], [[1, 0], [0, 1], [1, 1], [0, 2]]].forEach((c, i) => add('s-' + i, c, 4, .7));
+[[[0, 0], [1, 0], [2, 0], [0, 1]], [[0, 0], [1, 0], [2, 0], [2, 1]], [[0, 0], [0, 1], [1, 1], [2, 1]], [[2, 0], [0, 1], [1, 1], [2, 1]], [[0, 0], [1, 0], [0, 1], [0, 2]], [[0, 0], [1, 0], [1, 1], [1, 2]], [[0, 0], [0, 1], [0, 2], [1, 2]], [[1, 0], [1, 1], [0, 2], [1, 2]]].forEach((c, i) => add('L4-' + i, c, 5, .6));
+const KEY = 'nemo.v1';
+
+/* ───────── persistence ───────── */
+const defaults = () => ({ best: 0, daily: {}, games: 0, sound: true, haptics: true, fx: true, ghost: true, save: null });
+let P = defaults();
+try { const raw = localStorage.getItem(KEY); if (raw) P = { ...defaults(), ...JSON.parse(raw) }; } catch (e) {}
+const saveP = () => { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {} };
+
+/* ───────── helpers ───────── */
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const pad2 = n => String(n).padStart(2, '0');
+const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function shade(hex, amt) { const n = parseInt(hex.slice(1), 16); const f = v => clamp(Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt)), 0, 255); return `rgb(${f(n >> 16 & 255)},${f(n >> 8 & 255)},${f(n & 255)})`; }
+const fmt = n => n.toLocaleString('ko-KR');
+
+/* ───────── audio & haptics ───────── */
+let AC = null;
+function audio() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state !== 'running') AC.resume(); return AC; } catch (e) { return null; } }
+function tone(freq, t0, dur, type = 'sine', gain = .08, slide = 0) {
+  if (!P.sound) return; const ac = audio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain(); const t = ac.currentTime + t0;
+  o.type = type; o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t + dur);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + .008); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .03);
+}
+const sfx = {
+  pick() { tone(520, 0, .05, 'triangle', .035); },
+  place() { tone(300, 0, .07, 'triangle', .06, -80); },
+  bad() { tone(160, 0, .09, 'square', .03); },
+  clear(n, combo) { const base = 440 * Math.pow(1.06, Math.min(combo, 8)); for (let i = 0; i < Math.min(n, 4); i++) tone(base * (1 + i * .25), i * .06, .22, 'sine', .08); tone(base * 2, .05 + n * .04, .3, 'triangle', .05); },
+  allclear() { [523, 659, 784, 1046, 1318, 1568].forEach((f, i) => tone(f, i * .08, .5, 'sine', .09)); },
+  over() { [440, 370, 311, 262].forEach((f, i) => tone(f, i * .16, .32, 'triangle', .07)); },
+  ui() { tone(880, 0, .05, 'square', .025); },
+};
+const UNLOCK = ['touchend', 'pointerup', 'click', 'keydown'];
+const unlock = () => { if (P.sound) audio(); UNLOCK.forEach(t => document.removeEventListener(t, unlock)); };
+UNLOCK.forEach(t => document.addEventListener(t, unlock, { passive: true }));
+function haptic() { if (!P.haptics) return; try { $('#hapt-switch').click(); } catch (e) {} }
+
+/* ───────── game state ───────── */
+let G = null; /* {board, tray, score, lines, moves, combo, bestCombo, mode, seed, rngN, over} */
+let rng = Math.random;
+function makeRng(seed, n) { const r = mulberry32(seed); for (let i = 0; i < n; i++) r(); return r; }
+function newGame(mode) {
+  const seed = mode === 'daily' ? hashStr('nemo-' + todayKey()) : (Math.random() * 2 ** 31) | 0;
+  G = { board: new Array(N * N).fill(0), tray: [null, null, null], score: 0, lines: 0, moves: 0, combo: 0, bestCombo: 0, mode, seed, rngN: 0, over: false, date: todayKey() };
+  rng = makeRng(seed, 0);
+  refill();
+  persistGame();
+}
+function rnd() { G.rngN++; return rng(); }
+function fits(cells, bx, by, board = G.board) {
+  for (const [dx, dy] of cells) { const x = bx + dx, y = by + dy; if (x < 0 || y < 0 || x >= N || y >= N || board[y * N + x]) return false; }
+  return true;
+}
+function anyFit(cells, board = G.board) { for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (fits(cells, x, y, board)) return true; return false; }
+function pickShape() {
+  const fill = G.board.reduce((a, v) => a + (v ? 1 : 0), 0) / (N * N);
+  const weights = SH.map(s => s.w * (fill > .55 && s.cells.length <= 3 ? 1.7 : 1));
+  const tot = weights.reduce((a, b) => a + b, 0); let r = rnd() * tot;
+  for (let i = 0; i < SH.length; i++) { r -= weights[i]; if (r < 0) return SH[i]; }
+  return SH[0];
+}
+function refill() {
+  if (G.tray.some(p => p)) return;
+  for (let tries = 0; tries < 24; tries++) {
+    const t = [pickShape(), pickShape(), pickShape()];
+    if (t.some(s => anyFit(s.cells))) { G.tray = t.map(s => ({ s, ci: s.ci })); return; }
+  }
+  /* nothing fits: the smallest piece if even that fits, else the game is over */
+  G.tray = [{ s: SH[0], ci: SH[0].ci }, { s: pickShape(), ci: 0 }, { s: pickShape(), ci: 0 }].map(p => ({ s: p.s, ci: p.s.ci }));
+}
+function wouldClear(board) {
+  const rows = [], cols = [];
+  for (let y = 0; y < N; y++) { let full = true; for (let x = 0; x < N; x++) if (!board[y * N + x]) { full = false; break; } if (full) rows.push(y); }
+  for (let x = 0; x < N; x++) { let full = true; for (let y = 0; y < N; y++) if (!board[y * N + x]) { full = false; break; } if (full) cols.push(x); }
+  return { rows, cols };
+}
+function place(slot, bx, by) {
+  const p = G.tray[slot]; if (!p || !fits(p.s.cells, bx, by)) return false;
+  const now = performance.now();
+  for (const [dx, dy] of p.s.cells) { const i = (by + dy) * N + bx + dx; G.board[i] = p.ci + 1; pops[i] = now; }
+  G.tray[slot] = null; G.moves++;
+  let gained = p.s.cells.length; G.score += gained;
+  const { rows, cols } = wouldClear(G.board);
+  const n = rows.length + cols.length;
+  if (n) {
+    G.combo++; G.bestCombo = Math.max(G.bestCombo, G.combo);
+    const mul = Math.min(1 + .5 * (G.combo - 1), 3);
+    const pts = Math.round(10 * n * (n + 1) / 2 * mul);
+    G.score += pts; G.lines += n;
+    const cleared = new Set();
+    rows.forEach(y => { for (let x = 0; x < N; x++) cleared.add(y * N + x); });
+    cols.forEach(x => { for (let y = 0; y < N; y++) cleared.add(y * N + x); });
+    const cx = (rows.length ? N / 2 : cols.reduce((a, b) => a + b, 0) / cols.length + .5), cy = (cols.length ? N / 2 : rows.reduce((a, b) => a + b, 0) / rows.length + .5);
+    for (const i of cleared) { clearing.push({ i, ci: G.board[i], t: now, dx: (i % N) - cx, dy: Math.floor(i / N) - cy }); burstCell(i, G.board[i]); G.board[i] = 0; }
+    floatText(cx, cy, `+${pts}`, mul > 1 ? '#ffd166' : '#fff', 22 + n * 4);
+    if (G.combo > 1) showCombo(`콤보 ×${G.combo}`); else if (n >= 2) showCombo(`${n}줄 한번에!`);
+    if (n >= 3 && P.fx && !reduced) shake = Math.max(shake, 4 + n * 2);
+    const empty = G.board.every(v => !v);
+    if (empty) { G.score += 300; floatText(N / 2, N / 2 - 1.5, '올 클리어 +300', '#7ef0c4', 26); sfx.allclear(); if (P.fx && !reduced) shake = 12; }
+    else sfx.clear(n, G.combo);
+    haptic();
+  } else { G.combo = 0; sfx.place(); }
+  if (!G.tray.some(x => x)) refill();
+  if (!G.tray.some(x => x && anyFit(x.s.cells))) { setTimeout(gameOver, 500); }
+  updateHud(); persistGame();
+  return true;
+}
+function gameOver() {
+  if (!G || G.over) return; G.over = true; sfx.over(); P.games++;
+  const key = G.mode === 'daily' ? 'daily' : 'best';
+  let newBest = false;
+  if (G.mode === 'daily') { const d = P.daily[G.date] || 0; if (G.score > d) { P.daily[G.date] = G.score; newBest = true; } P.best = Math.max(P.best, G.score); }
+  else { if (G.score > P.best) { P.best = G.score; newBest = true; } }
+  P.save = null; saveP();
+  const prevBest = G.mode === 'daily' ? (newBest ? 0 : P.daily[G.date] || 0) : (newBest ? 0 : P.best);
+  setTimeout(() => showOver(newBest, prevBest), 700);
+}
+function persistGame() { if (!G || G.over) { P.save = null; } else P.save = { board: G.board, tray: G.tray.map(p => p ? { name: p.s.name, ci: p.ci } : null), score: G.score, lines: G.lines, moves: G.moves, combo: G.combo, bestCombo: G.bestCombo, mode: G.mode, seed: G.seed, rngN: G.rngN, date: G.date }; saveP(); }
+function restoreGame(s) {
+  if (!s || !Array.isArray(s.board) || s.board.length !== N * N) return false;
+  if (s.mode === 'daily' && s.date !== todayKey()) return false;
+  G = { board: s.board.slice(), tray: s.tray.map(p => p ? { s: SH.find(x => x.name === p.name) || SH[0], ci: p.ci } : null), score: s.score, lines: s.lines, moves: s.moves, combo: s.combo, bestCombo: s.bestCombo, mode: s.mode, seed: s.seed, rngN: s.rngN, over: false, date: s.date };
+  rng = makeRng(G.seed, G.rngN);
+  return true;
+}
+
+/* ───────── layout & drawing ───────── */
+const bc = $('#board'), bctx = bc.getContext('2d'), tc = $('#tray'), tctx = tc.getContext('2d'), fx = $('#fx'), fctx = fx.getContext('2d');
+let cell = 40, pad = 10, dpr = 1, boardW = 0, trayH = 0, boardRect = null, trayRect = null;
+const pops = new Array(N * N).fill(0);
+let clearing = [], particles = [], floats = [], shake = 0, comboT = null;
+function layout() {
+  dpr = Math.min(devicePixelRatio || 1, 3);
+  const stage = $('#stage'); const availW = Math.min(stage.clientWidth, 440); const availH = stage.clientHeight - 48;
+  cell = Math.floor(Math.min((availW - 2 * pad) / N, (availH - 2 * pad) / (N + 3.3)));
+  cell = clamp(cell, 28, 52);
+  boardW = cell * N + pad * 2; trayH = Math.round(cell * 2.6);
+  bc.width = boardW * dpr; bc.height = boardW * dpr; bc.style.width = boardW + 'px'; bc.style.height = boardW + 'px';
+  tc.width = boardW * dpr; tc.height = trayH * dpr; tc.style.width = boardW + 'px'; tc.style.height = trayH + 'px';
+  fx.width = innerWidth * dpr; fx.height = innerHeight * dpr; fx.style.width = innerWidth + 'px'; fx.style.height = innerHeight + 'px';
+  measure();
+}
+function measure() { boardRect = bc.getBoundingClientRect(); trayRect = tc.getBoundingClientRect(); }
+addEventListener('resize', () => { layout(); });
+function drawBlock(c, x, y, s, ci, alpha = 1, scale = 1) {
+  const col = COLORS[ci] || COLORS[0]; const r = s * .22; const inset = s * .06;
+  c.save(); c.globalAlpha = alpha; c.translate(x + s / 2, y + s / 2); c.scale(scale, scale); c.translate(-s / 2, -s / 2);
+  rr(c, inset, inset, s - inset * 2, s - inset * 2, r); c.fillStyle = shade(col, -.35); c.fill();
+  rr(c, inset, inset, s - inset * 2, s - inset * 2 - s * .09, r); c.fillStyle = col; c.fill();
+  rr(c, inset + s * .1, inset + s * .08, s - inset * 2 - s * .2, s * .16, r * .6); c.fillStyle = 'rgba(255,255,255,.32)'; c.fill();
+  c.restore();
+}
+function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+function drawBoard(now) {
+  const c = bctx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, boardW, boardW);
+  let sx = 0, sy = 0; if (shake > 0 && P.fx && !reduced) { sx = (Math.random() - .5) * shake; sy = (Math.random() - .5) * shake; }
+  c.save(); c.translate(sx, sy);
+  rr(c, 0, 0, boardW, boardW, 16); c.fillStyle = '#1b1e42'; c.fill();
+  const ghost = drag && drag.valid && P.ghost ? drag : null;
+  const gh = ghost ? new Set(ghost.cells.map(([dx, dy]) => (ghost.by + dy) * N + ghost.bx + dx)) : null;
+  let hl = null;
+  if (ghost) { const b = G.board.slice(); for (const i of gh) b[i] = 1; const wc = wouldClear(b); if (wc.rows.length || wc.cols.length) { hl = new Set(); wc.rows.forEach(y => { for (let x = 0; x < N; x++) hl.add(y * N + x); }); wc.cols.forEach(x => { for (let y = 0; y < N; y++) hl.add(y * N + x); }); } }
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, px = pad + x * cell, py = pad + y * cell;
+    rr(c, px + 1.5, py + 1.5, cell - 3, cell - 3, cell * .18); c.fillStyle = hl && hl.has(i) && !G.board[i] ? 'rgba(255,255,255,.22)' : '#262b58'; c.fill();
+    if (G.board[i]) { const age = now - pops[i]; const sc = age < 180 ? lerp(1.18, 1, age / 180) : 1; drawBlock(c, px, py, cell, G.board[i] - 1, 1, sc); if (hl && hl.has(i)) { rr(c, px + 1.5, py + 1.5, cell - 3, cell - 3, cell * .18); c.fillStyle = `rgba(255,255,255,${.25 + .15 * Math.sin(now / 90)})`; c.fill(); } }
+    else if (gh && gh.has(i)) drawBlock(c, px, py, cell, ghost.piece.ci, .45);
+  }
+  for (const k of clearing) { const age = (now - k.t) / 260; if (age >= 1) continue; const x = k.i % N, y = Math.floor(k.i / N); drawBlock(c, pad + x * cell + k.dx * age * 8, pad + y * cell + k.dy * age * 8, cell, k.ci - 1, 1 - age, 1 - age * .6); }
+  clearing = clearing.filter(k => now - k.t < 260);
+  for (const p of particles) { const k = 1 - p.t / p.life; c.globalAlpha = k; c.fillStyle = p.c; rr(c, p.x - p.r * k, p.y - p.r * k, p.r * 2 * k, p.r * 2 * k, 2); c.fill(); }
+  c.globalAlpha = 1;
+  for (const f of floats) { const k = f.t; c.globalAlpha = k < .8 ? 1 : 1 - (k - .8) / .2; c.font = `${f.size}px Jua,"Noto Sans KR",sans-serif`; c.textAlign = 'center'; c.lineWidth = 5; c.strokeStyle = 'rgba(20,16,44,.7)'; const y = pad + f.y * cell - k * 30; c.strokeText(f.txt, pad + f.x * cell, y); c.fillStyle = f.color; c.fillText(f.txt, pad + f.x * cell, y); }
+  c.globalAlpha = 1; c.restore();
+}
+function trayPos(slot) { const w = boardW / 3; return { x: slot * w, y: 0, w, h: trayH }; }
+function trayScale(p) { return Math.min(cell * .62, (boardW / 3 - 16) / Math.max(p.s.bw, p.s.bh) ); }
+function drawTray() {
+  const c = tctx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, boardW, trayH);
+  for (let i = 0; i < 3; i++) {
+    const p = G.tray[i]; const r = trayPos(i);
+    rr(c, r.x + 6, 6, r.w - 12, trayH - 12, 16); c.fillStyle = 'rgba(255,255,255,.05)'; c.fill();
+    if (!p || (drag && drag.slot === i)) continue;
+    const s = trayScale(p); const ox = r.x + (r.w - p.s.bw * s) / 2, oy = (trayH - p.s.bh * s) / 2;
+    const can = anyFit(p.s.cells);
+    for (const [dx, dy] of p.s.cells) drawBlock(c, ox + dx * s, oy + dy * s, s, p.ci, can ? 1 : .35);
+  }
+}
+function drawFx() {
+  const c = fctx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, innerWidth, innerHeight);
+  if (!drag) return;
+  const p = drag.piece; const s = cell;
+  const x0 = drag.px, y0 = drag.py;
+  c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 16; c.shadowOffsetY = 8;
+  for (const [dx, dy] of p.s.cells) drawBlock(c, x0 + dx * s, y0 + dy * s, s, p.ci, 1, 1.02);
+  c.restore();
+}
+function burstCell(i, ci) {
+  if (reduced) return;
+  const x = pad + (i % N) * cell + cell / 2, y = pad + Math.floor(i / N) * cell + cell / 2;
+  for (let k = 0; k < 4; k++) { const a = Math.random() * Math.PI * 2, sp = 40 + Math.random() * 90; particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, r: 2 + Math.random() * 3, c: COLORS[ci - 1] || '#fff', t: 0, life: .5 + Math.random() * .3 }); }
+}
+function floatText(x, y, txt, color, size) { floats.push({ x, y, txt, color, size, t: 0 }); }
+function showCombo(txt) { const el = $('#combo'); el.textContent = txt; el.classList.add('on'); clearTimeout(comboT); comboT = setTimeout(() => el.classList.remove('on'), 1100); }
+function updateHud() { $('#hud-score').textContent = fmt(G.score); const best = G.mode === 'daily' ? Math.max(P.daily[G.date] || 0, G.score) : Math.max(P.best, G.score); $('#hud-best').textContent = fmt(best); $('#mode').textContent = G.mode === 'daily' ? `오늘의 도전 · ${G.date.slice(5).replace('-', '/')} · 모두 같은 조각` : '클래식'; }
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  for (const p of particles) { p.t += dt; p.vy += 260 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+  particles = particles.filter(p => p.t < p.life);
+  for (const f of floats) f.t += dt * .9; floats = floats.filter(f => f.t < 1);
+  if (shake > 0) shake = Math.max(0, shake - 45 * dt);
+  if (G) { drawBoard(now); drawTray(); drawFx(); }
+  requestAnimationFrame(frame);
+}
+
+/* ───────── drag input ───────── */
+let drag = null; /* {slot, piece, cells, px, py, bx, by, valid, id} */
+const LIFT = 74;
+function slotAt(cx, cy) { if (!trayRect) return -1; if (cy < trayRect.top - 8 || cy > trayRect.bottom + 8) return -1; const i = Math.floor((cx - trayRect.left) / (boardW / 3)); return i >= 0 && i < 3 ? i : -1; }
+function onDown(e) {
+  if (!G || G.over || drag) return;
+  const i = slotAt(e.clientX, e.clientY); if (i < 0 || !G.tray[i]) return;
+  const p = G.tray[i]; if (!anyFit(p.s.cells)) { sfx.bad(); showCombo('놓을 자리가 없어요'); return; }
+  drag = { slot: i, piece: p, cells: p.s.cells, px: 0, py: 0, bx: -9, by: -9, valid: false, id: e.pointerId };
+  sfx.pick(); try { tc.setPointerCapture(e.pointerId); } catch (err) {}
+  onMove(e);
+}
+function onMove(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const p = drag.piece; const w = p.s.bw * cell, h = p.s.bh * cell;
+  drag.px = e.clientX - w / 2; drag.py = e.clientY - LIFT - h;
+  const bx = Math.round((drag.px - boardRect.left - pad) / cell), by = Math.round((drag.py - boardRect.top - pad) / cell);
+  drag.bx = bx; drag.by = by; drag.valid = fits(p.s.cells, bx, by);
+}
+function onUp(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; drag = null;
+  if (d.valid) { place(d.slot, d.bx, d.by); } else { sfx.bad(); }
+}
+tc.addEventListener('pointerdown', onDown);
+addEventListener('pointermove', onMove, { passive: true });
+addEventListener('pointerup', onUp); addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) drag = null; });
+
+/* ───────── overlays ───────── */
+function show(id) { document.querySelectorAll('.ov').forEach(o => o.classList.toggle('show', o.id === id)); }
+function hideAll() { document.querySelectorAll('.ov').forEach(o => o.classList.remove('show')); }
+let toastT = null;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+function renderStart() {
+  const d = P.daily[todayKey()];
+  $('#start-best').innerHTML = `<span>최고 점수<b>${fmt(P.best)}</b></span>${d ? `<span>오늘의 도전<b>${fmt(d)}</b></span>` : ''}<span>플레이<b>${P.games}</b></span>`;
+  const canResume = P.save && (P.save.mode !== 'daily' || P.save.date === todayKey());
+  $('#btn-resume').hidden = !canResume;
+  $('#btn-resume').textContent = canResume ? `이어하기 · ${fmt(P.save.score)}점` : '';
+  $('#btn-daily').textContent = d ? `오늘의 도전 다시 (최고 ${fmt(d)})` : '오늘의 도전';
+}
+function start(mode) { newGame(mode); hideAll(); updateHud(); layout(); sfx.ui(); }
+function resume() { if (restoreGame(P.save)) { hideAll(); updateHud(); layout(); } else { P.save = null; saveP(); renderStart(); } }
+function showOver(newBest, prevBest) {
+  $('#go-score').textContent = fmt(G.score); $('#go-sub').textContent = G.mode === 'daily' ? `오늘의 도전 ${G.date.slice(5).replace('-', '/')}` : '점';
+  $('#go-newbest').hidden = !newBest;
+  const gap = prevBest - G.score; const near = !newBest && gap > 0 && gap <= Math.max(80, prevBest * .12);
+  $('#go-near').hidden = !near; if (near) $('#go-near').textContent = `아깝다! 최고 기록까지 ${fmt(gap)}점`;
+  $('#go-lines').textContent = String(G.lines); $('#go-moves').textContent = String(G.moves); $('#go-combo').textContent = String(G.bestCombo);
+  $('#btn-again').textContent = G.mode === 'daily' ? '오늘의 도전 다시' : '다시 하기';
+  show('ov-over');
+}
+function renderSettings() { $('#set-sound').setAttribute('aria-checked', String(P.sound)); $('#set-hapt').setAttribute('aria-checked', String(P.haptics)); $('#set-fx').setAttribute('aria-checked', String(P.fx)); $('#set-ghost').setAttribute('aria-checked', String(P.ghost)); }
+let settingsFrom = 'start';
+$('#btn-classic').addEventListener('click', () => start('classic'));
+$('#btn-daily').addEventListener('click', () => start('daily'));
+$('#btn-resume').addEventListener('click', resume);
+$('#btn-again').addEventListener('click', () => start(G ? G.mode : 'classic'));
+$('#btn-restart').addEventListener('click', () => { if (!G) return; if (G.moves > 3 && !G.over) { showCombo('메뉴에서 "처음으로"를 눌러 주세요'); $('#btn-menu').click(); return; } start(G.mode); });
+$('#btn-menu').addEventListener('click', () => { if (!G || G.over) return; $('#pause-score').innerHTML = `<span>지금 점수<b>${fmt(G.score)}</b></span><span>지운 줄<b>${G.lines}</b></span>`; show('ov-pause'); sfx.ui(); });
+$('#btn-continue').addEventListener('click', hideAll);
+const goHome = () => { persistGame(); G = null; renderStart(); show('ov-start'); };
+$('#btn-home').addEventListener('click', goHome); $('#btn-home2').addEventListener('click', () => { G = null; renderStart(); show('ov-start'); });
+$('#btn-settings').addEventListener('click', () => { settingsFrom = 'start'; renderSettings(); show('ov-settings'); });
+$('#btn-settings2').addEventListener('click', () => { settingsFrom = 'pause'; renderSettings(); show('ov-settings'); });
+$('#btn-settings-close').addEventListener('click', () => { sfx.ui(); if (settingsFrom === 'pause') show('ov-pause'); else { renderStart(); show('ov-start'); } });
+const bindSwitch = (id, k) => $(id).addEventListener('click', () => { P[k] = !P[k]; saveP(); renderSettings(); if (k === 'sound') sfx.ui(); });
+bindSwitch('#set-sound', 'sound'); bindSwitch('#set-hapt', 'haptics'); bindSwitch('#set-fx', 'fx'); bindSwitch('#set-ghost', 'ghost');
+$('#btn-reset-best').addEventListener('click', () => { P.best = 0; P.daily = {}; P.games = 0; saveP(); toast('기록을 지웠어요'); });
+$('#btn-share').addEventListener('click', async () => {
+  const text = G.mode === 'daily' ? `네모팡 오늘의 도전 ${G.date}\n${fmt(G.score)}점 · ${G.lines}줄 · 최고 콤보 ${G.bestCombo}\n같은 조각으로 도전해 보세요 → ${location.href.split('#')[0]}` : `네모팡에서 ${fmt(G.score)}점! (${G.lines}줄) 도전해 보세요 → ${location.href.split('#')[0]}`;
+  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast('점수를 복사했어요'); } catch (e) { toast(`${fmt(G.score)}점 · 캡처해서 자랑하세요!`); }
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) { persistGame(); if (drag) drag = null; } last = performance.now(); });
+addEventListener('pagehide', persistGame);
+
+/* ───────── boot ───────── */
+function boot() {
+  layout(); renderSettings(); renderStart(); show('ov-start');
+  requestAnimationFrame(t => { last = t; frame(t); });
+  if (document.fonts && document.fonts.load) document.fonts.load('30px Jua').catch(() => {});
+  if ('serviceWorker' in navigator && /github\.io$/.test(location.hostname)) { try { navigator.serviceWorker.register('sw.js'); } catch (e) {} }
+}
+try { if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(boot); else boot(); } catch (e) { boot(); }
+window.__nemo = { get G() { return G; }, get P() { return P; }, start, place, fits, anyFit, SH, layout, cellInfo: () => ({ cell, pad, boardRect, trayRect, boardW, trayH }), measure, gameOver };
+})();
+</script>
+</body>
+</html>

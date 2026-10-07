@@ -15,6 +15,8 @@ GitHub Pages로 배포되며, Safari에서 "홈 화면에 추가"하면 앱처�
 | 이름 | 종류 | 주소 |
 | --- | --- | --- |
 | 하루 | 할 일·습관·집중 타이머·기록 플래너 | https://joofam0819-crypto.github.io/claude-cloud/haru/ |
+| 찰칵 | 문서 스캐너 (테두리 자동 인식 → 반듯한 PDF) | https://joofam0819-crypto.github.io/claude-cloud/chalkak/ |
+| 네모팡 | 8×8 블록 퍼즐 게임 (오늘의 도전 포함) | https://joofam0819-crypto.github.io/claude-cloud/nemo/ |
 | 하루 v1 | 습관·예산·구독·D-day (이전 버전) | https://joofam0819-crypto.github.io/claude-cloud/haru/pwa/ |
 | 몽글몽글 | 물리 합치기 퍼즐 게임 | https://joofam0819-crypto.github.io/claude-cloud/mongle/ |
 | 네온 스웜 | 생존 액션 게임 | https://joofam0819-crypto.github.io/claude-cloud/neon-swarm/ |
