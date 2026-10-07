@@ -29,7 +29,13 @@ GitHub **Releases** 페이지에서 `.dmg` 파일을 받습니다.
 3. **시스템 설정 → 개인정보 보호 및 보안** 으로 가서 아래로 내리면 "‘ClipMint’이(가) Mac을 보호하기 위해 차단되었습니다" 문구 옆에 **그래도 열기** 버튼이 있습니다. 누르고 Touch ID/비밀번호를 입력한 뒤, 다시 뜨는 창에서 **열기**를 누릅니다.
 4. 두 번째 앱도 같은 방법으로 허용합니다.
 
-**가장 빠른 방법(터미널 한 줄)** — 터미널을 열고 아래를 통째로 붙여넣고 Enter. 최신 버전 다운로드·설치·차단 해제·실행까지 한 번에 됩니다.
+**가장 빠른 방법(터미널 한 줄)** — 터미널을 열고 아래 한 줄을 붙여넣고 Enter. 최신 버전 다운로드·설치·차단 해제·실행까지 한 번에 됩니다(`scripts/install-mac-apps.sh`).
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/joofam0819-crypto/claude-cloud/main/scripts/install-mac-apps.sh | bash
+```
+
+같은 일을 하는 긴 버전(스크립트 없이):
 
 ```bash
 cd ~/Downloads && curl -L -o ClipMint.zip https://github.com/joofam0819-crypto/claude-cloud/releases/latest/download/ClipMint-1.0.0-mac.zip && curl -L -o Approach.zip https://github.com/joofam0819-crypto/claude-cloud/releases/latest/download/Approach-1.0.0-mac.zip && ditto -x -k ClipMint.zip /Applications && ditto -x -k Approach.zip /Applications && xattr -dr com.apple.quarantine /Applications/ClipMint.app /Applications/Approach.app && open /Applications/ClipMint.app && open /Applications/Approach.app
